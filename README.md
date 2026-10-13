@@ -28,11 +28,12 @@ Robin Sloan's essay *An app can be a home-cooked meal* [1] is about making softw
 
 Parimal Satyal's *Rediscovering the Small Web* [2] is about personal, specific websites. I read it as saying a small project can be worth something because of one specific experience. Neither essay proves this game is fun, though. Only playtesting can show that.
 
-## What's checked and what's judged
+## What's checked and what's judged 
 
-Checked by tests in `spec/`: a delivery stays secret until a prediction is locked in, and a pending delivery's value is never in what a page loads; a wrong prediction is scored as a miss; a prediction is rejected when no delivery is waiting; and the page lists at most the ten most recent finished rounds, newest first. The course's two shipped checks also pass (the app answers at `/`, and this README is published at `/readme/`).
+Checked by tests in `spec/`: a delivery stays secret until a prediction is locked in, and a pending delivery's value is never in what a page loads; a wrong prediction is scored as a miss; a prediction is rejected when no delivery is waiting; a second delivery is rejected while one is already waiting, so the first click wins; and the page lists at most the ten most recent finished rounds, newest first. The course's two shipped checks also pass (the app answers at `/`, and this README is published at `/readme/`).
 
 Judged by people: whether it's fun. At the crit I want to watch whether people understand the reveal, start reading each other's patterns, and want to play again.
+
 
 ## References
 

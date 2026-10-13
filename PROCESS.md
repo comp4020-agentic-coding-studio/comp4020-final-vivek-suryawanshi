@@ -25,6 +25,8 @@ After deploying, I tested with two browser windows side by side. Real-time worke
 
 When I wrote the README, I checked every claim under "checked" against the actual test names in spec/game.test.ts and took out the ones that weren't really tested.
 
+When I ran the ship preflight, two tests failed against the live app. Claude Code offered to fix the app code, but I thought the cause was a delivery I'd left pending on the live site while testing, because the same tests had passed on a fresh database. That was right: the tests assumed a clean start, so it added a step that clears any open delivery first. While checking this, it also mentioned that the server opened a new round for every delivery. That meant first click wins, the rule in my decision record, only worked because the page disabled the buttons. Two people clicking at the same moment could both get through. So I had the server reject a second delivery while one is waiting, and added a test for it in [`f7ca6ec`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/f7ca6ec).
+
 ## The stack
 
 The app is plain Node (`node:http`), SQLite through Node's built-in `node:sqlite`, server-sent events for live updates, and `marked` to render the README at /readme/.
