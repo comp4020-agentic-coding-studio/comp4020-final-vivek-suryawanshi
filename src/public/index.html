@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Final Over</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Final Over</h1>
+      <p><a href="/readme/">About this app</a></p>
+
+      <section>
+        <h2>Bowler: deliver the ball</h2>
+        <div class="choices" data-role="deliver">
+          <button type="button" data-call="fast">Fast</button>
+          <button type="button" data-call="slow">Slow</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Batter: lock your prediction</h2>
+        <div class="choices" data-role="predict">
+          <button type="button" data-call="fast">Fast</button>
+          <button type="button" data-call="slow">Slow</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Result</h2>
+        <p id="status">Waiting for a delivery…</p>
+      </section>
+    </main>
+    <script src="/client.js"></script>
+  </body>
+</html>
