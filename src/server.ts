@@ -4,11 +4,11 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
   openDb,
-  getOpenOrLatestRound,
+  hasPendingDelivery,
+  getHistory,
   recordDelivery,
   recordPrediction,
   type Call,
-  type Round,
 } from "./db.ts";
 import { Hub } from "./hub.ts";
 import { renderReadme } from "./readme.ts";
@@ -42,32 +42,33 @@ function isCall(value: unknown): value is Call {
   return value === "fast" || value === "slow";
 }
 
-// The delivery is secret until a prediction is locked in — otherwise a
-// predicting browser that receives the live state could just read the
-// answer off it. Once both calls are in, the round is revealed in full.
+const HISTORY_LIMIT = 10;
+
+// A pending delivery is secret until a prediction is locked in — otherwise a
+// browser that receives this on load, or over the live stream, could just
+// read the answer off it. getHistory() only ever returns rounds where both
+// calls are already in, so there's no delivery value here to withhold: a
+// pending round simply isn't a row this query can return.
 interface ClientRound {
   id: number;
-  awaitingPrediction: boolean;
-  delivery: Call | null;
-  prediction: Call | null;
-  result: "hit" | "miss" | null;
+  delivery: Call;
+  prediction: Call;
+  result: "hit" | "miss";
 }
 
-function toClientRound(round: Round | null): ClientRound | null {
-  if (!round) return null;
-  const revealed = round.prediction !== null;
-  return {
+interface ClientState {
+  pending: boolean;
+  history: ClientRound[];
+}
+
+function buildState(): ClientState {
+  const history = getHistory(db, HISTORY_LIMIT).map((round) => ({
     id: round.id,
-    awaitingPrediction: round.delivery !== null && !revealed,
-    delivery: revealed ? round.delivery : null,
-    prediction: round.prediction,
-    result:
-      revealed && round.delivery !== null
-        ? round.delivery === round.prediction
-          ? "hit"
-          : "miss"
-        : null,
-  };
+    delivery: round.delivery as Call,
+    prediction: round.prediction as Call,
+    result: (round.delivery === round.prediction ? "hit" : "miss") as "hit" | "miss",
+  }));
+  return { pending: hasPendingDelivery(db), history };
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {
@@ -111,7 +112,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && url.pathname === "/api/state") {
-      sendJson(res, 200, { round: toClientRound(getOpenOrLatestRound(db)) });
+      sendJson(res, 200, buildState());
       return;
     }
 
@@ -121,8 +122,7 @@ const server = createServer(async (req, res) => {
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
       });
-      const round = toClientRound(getOpenOrLatestRound(db));
-      res.write(`event: state\ndata: ${JSON.stringify({ round })}\n\n`);
+      res.write(`event: state\ndata: ${JSON.stringify(buildState())}\n\n`);
       hub.add(res);
       req.on("close", () => hub.remove(res));
       return;
@@ -134,9 +134,10 @@ const server = createServer(async (req, res) => {
         sendJson(res, 400, { error: "delivery must be 'fast' or 'slow'" });
         return;
       }
-      const round = toClientRound(recordDelivery(db, body.delivery));
-      hub.broadcast("state", { round });
-      sendJson(res, 200, { round });
+      recordDelivery(db, body.delivery);
+      const state = buildState();
+      hub.broadcast("state", state);
+      sendJson(res, 200, state);
       return;
     }
 
@@ -151,9 +152,9 @@ const server = createServer(async (req, res) => {
         sendJson(res, 409, { error: "no open delivery to predict against" });
         return;
       }
-      const round = toClientRound(updated);
-      hub.broadcast("state", { round });
-      sendJson(res, 200, { round });
+      const state = buildState();
+      hub.broadcast("state", state);
+      sendJson(res, 200, state);
       return;
     }
 

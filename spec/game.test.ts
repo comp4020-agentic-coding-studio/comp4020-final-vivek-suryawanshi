@@ -17,76 +17,103 @@ async function waitForEvent(stream: ReadableStreamDefaultReader<Uint8Array>): Pr
   }
 }
 
-it("keeps the delivery secret until a prediction is locked in", async () => {
+function post(path: string, body: unknown): Promise<Response> {
+  return fetch(new URL(path, baseUrl), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+it("keeps the delivery secret until a prediction is locked in, then shows it in history", async () => {
+  const before = await fetch(new URL("/api/state", baseUrl)).then((r) => r.json());
+
   const res = await fetch(new URL("/api/stream", baseUrl));
   const reader = res.body!.getReader();
 
   // The initial push on connect.
   await waitForEvent(reader);
 
-  const delivered = await fetch(new URL("/api/deliver", baseUrl), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ delivery: "fast" }),
-  }).then((r) => r.json());
-  expect(delivered.round.delivery).toBeNull();
-  expect(delivered.round.awaitingPrediction).toBe(true);
+  const delivered = await post("/api/deliver", { delivery: "fast" }).then((r) => r.json());
+  expect(delivered.pending).toBe(true);
+  expect(delivered.history).toEqual(before.history);
 
-  const afterDeliver = (await waitForEvent(reader)) as { round: { delivery: string | null } };
-  expect(afterDeliver.round.delivery).toBeNull();
+  const afterDeliver = (await waitForEvent(reader)) as {
+    pending: boolean;
+    history: unknown[];
+  };
+  expect(afterDeliver.pending).toBe(true);
+  expect(afterDeliver.history).toEqual(before.history);
 
-  const predicted = await fetch(new URL("/api/predict", baseUrl), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prediction: "fast" }),
-  }).then((r) => r.json());
-  expect(predicted.round.delivery).toBe("fast");
-  expect(predicted.round.result).toBe("hit");
+  const predicted = await post("/api/predict", { prediction: "fast" }).then((r) => r.json());
+  expect(predicted.pending).toBe(false);
+  expect(predicted.history[0]).toMatchObject({ delivery: "fast", prediction: "fast", result: "hit" });
 
   const afterPredict = (await waitForEvent(reader)) as {
-    round: { delivery: string; prediction: string; result: string };
+    pending: boolean;
+    history: { delivery: string; prediction: string; result: string }[];
   };
-  expect(afterPredict.round.result).toBe("hit");
-  expect(afterPredict.round.delivery).toBe("fast");
-  expect(afterPredict.round.prediction).toBe("fast");
+  expect(afterPredict.pending).toBe(false);
+  expect(afterPredict.history[0]).toMatchObject({
+    delivery: "fast",
+    prediction: "fast",
+    result: "hit",
+  });
 
   await reader.cancel();
 });
 
-it("reports a miss when the prediction doesn't match the delivery", async () => {
-  await fetch(new URL("/api/deliver", baseUrl), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ delivery: "slow" }),
-  });
+it("never sends a pending delivery's value in the state a page loads", async () => {
+  const before = await fetch(new URL("/api/state", baseUrl)).then((r) => r.json());
 
-  const res = await fetch(new URL("/api/predict", baseUrl), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prediction: "fast" }),
-  });
-  const { round } = await res.json();
-  expect(round.result).toBe("miss");
+  const delivered = await post("/api/deliver", { delivery: "slow" }).then((r) => r.json());
+
+  // The whole response, from every route that can report this round, has
+  // exactly two top-level fields: no "delivery", "currentDelivery" or similar
+  // ever exists on the wire for a pending round, so there's nothing to
+  // accidentally serialise.
+  expect(Object.keys(delivered).sort()).toEqual(["history", "pending"]);
+  expect(delivered.pending).toBe(true);
+  // A pending round isn't a finished one, so it cannot appear in history —
+  // the list is exactly what it was before this delivery.
+  expect(delivered.history).toEqual(before.history);
+
+  const state = await fetch(new URL("/api/state", baseUrl)).then((r) => r.json());
+  expect(Object.keys(state).sort()).toEqual(["history", "pending"]);
+  expect(state.pending).toBe(true);
+  expect(state.history).toEqual(before.history);
+
+  // Clean up the pending round so later tests start from a known state.
+  await post("/api/predict", { prediction: "slow" });
+});
+
+it("reports a miss when the prediction doesn't match the delivery", async () => {
+  await post("/api/deliver", { delivery: "slow" });
+
+  const res = await post("/api/predict", { prediction: "fast" });
+  const state = await res.json();
+  expect(state.history[0]).toMatchObject({ delivery: "slow", prediction: "fast", result: "miss" });
 });
 
 it("rejects a prediction with no open delivery", async () => {
   // Drain any open round from a previous test by delivering+predicting once,
   // then try to predict again with nothing open.
-  await fetch(new URL("/api/deliver", baseUrl), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ delivery: "fast" }),
-  });
-  await fetch(new URL("/api/predict", baseUrl), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prediction: "fast" }),
-  });
+  await post("/api/deliver", { delivery: "fast" });
+  await post("/api/predict", { prediction: "fast" });
 
-  const res = await fetch(new URL("/api/predict", baseUrl), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prediction: "slow" }),
-  });
+  const res = await post("/api/predict", { prediction: "slow" });
   expect(res.status).toBe(409);
+});
+
+it("lists at most the 10 most recent finished rounds, newest first", async () => {
+  for (let i = 0; i < 12; i++) {
+    await post("/api/deliver", { delivery: "fast" });
+    await post("/api/predict", { prediction: i % 2 === 0 ? "fast" : "slow" });
+  }
+
+  const res = await fetch(new URL("/api/state", baseUrl));
+  const state = await res.json();
+
+  expect(state.history.length).toBe(10);
+  expect(state.history[0].id).toBeGreaterThan(state.history[9].id);
 });

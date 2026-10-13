@@ -34,23 +34,26 @@ export function openDb(path: string): DatabaseSync {
   return db;
 }
 
-// The open round is the latest one still missing either call; a finished
-// round (both calls made) stays as history and the next delivery starts a
-// fresh row.
-export function getOpenOrLatestRound(db: DatabaseSync): Round | null {
+// Whether a delivery is sitting unmatched. Callers never learn its value
+// from this — the row isn't read, just whether one exists.
+export function hasPendingDelivery(db: DatabaseSync): boolean {
   const row = db
+    .prepare(`SELECT 1 FROM rounds WHERE delivery IS NOT NULL AND prediction IS NULL LIMIT 1`)
+    .get();
+  return row !== undefined;
+}
+
+// Only rounds with both calls made: a pending delivery, by construction, can
+// never appear here, so there's no field to blank out or forget to blank out.
+export function getHistory(db: DatabaseSync, limit: number): Round[] {
+  const rows = db
     .prepare(
       `SELECT * FROM rounds
-       WHERE delivery IS NULL OR prediction IS NULL
-       ORDER BY id DESC LIMIT 1`,
+       WHERE delivery IS NOT NULL AND prediction IS NOT NULL
+       ORDER BY id DESC LIMIT ?`,
     )
-    .get() as Record<string, unknown> | undefined;
-  if (row) return rowToRound(row);
-
-  const latest = db.prepare(`SELECT * FROM rounds ORDER BY id DESC LIMIT 1`).get() as
-    | Record<string, unknown>
-    | undefined;
-  return latest ? rowToRound(latest) : null;
+    .all(limit) as Record<string, unknown>[];
+  return rows.map(rowToRound);
 }
 
 export function recordDelivery(db: DatabaseSync, delivery: Call): Round {

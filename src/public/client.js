@@ -1,41 +1,51 @@
 const statusEl = document.getElementById("status");
+const historyEl = document.getElementById("history");
 const deliverButtons = document.querySelectorAll('[data-role="deliver"] button');
 const predictButtons = document.querySelectorAll('[data-role="predict"] button');
 
-function render(round) {
+function renderStatus(state) {
   for (const btn of deliverButtons) btn.classList.remove("selected");
   for (const btn of predictButtons) btn.classList.remove("selected");
   statusEl.classList.remove("hit", "miss");
 
-  if (!round) {
+  if (state.pending) {
+    statusEl.textContent = "A delivery is in — waiting for a prediction…";
+    return;
+  }
+
+  const latest = state.history[0];
+  if (!latest) {
     statusEl.textContent = "Waiting for a delivery…";
     return;
   }
 
-  if (round.prediction) {
-    for (const btn of predictButtons) {
-      if (btn.dataset.call === round.prediction) btn.classList.add("selected");
-    }
+  for (const btn of deliverButtons) {
+    if (btn.dataset.call === latest.delivery) btn.classList.add("selected");
   }
-
-  if (round.result) {
-    for (const btn of deliverButtons) {
-      if (btn.dataset.call === round.delivery) btn.classList.add("selected");
-    }
-    statusEl.textContent =
-      round.result === "hit"
-        ? `Predicted right! It was ${round.delivery}.`
-        : `Missed — it was ${round.delivery}, not ${round.prediction}.`;
-    statusEl.classList.add(round.result);
-    return;
+  for (const btn of predictButtons) {
+    if (btn.dataset.call === latest.prediction) btn.classList.add("selected");
   }
+  statusEl.textContent =
+    latest.result === "hit"
+      ? `Predicted right! It was ${latest.delivery}.`
+      : `Missed — it was ${latest.delivery}, not ${latest.prediction}.`;
+  statusEl.classList.add(latest.result);
+}
 
-  if (round.awaitingPrediction) {
-    statusEl.textContent = "Delivery locked in — waiting for a prediction…";
-    return;
-  }
+function renderHistory(history) {
+  historyEl.replaceChildren(
+    ...history.map((round) => {
+      const li = document.createElement("li");
+      li.className = round.result;
+      li.textContent = `Delivered ${round.delivery}, predicted ${round.prediction} — ${round.result === "hit" ? "hit" : "miss"}`;
+      return li;
+    }),
+  );
+}
 
-  statusEl.textContent = "Waiting for a delivery…";
+function render(state) {
+  renderStatus(state);
+  renderHistory(state.history);
 }
 
 async function post(path, body) {
@@ -60,6 +70,5 @@ for (const btn of predictButtons) {
 
 const stream = new EventSource("/api/stream");
 stream.addEventListener("state", (event) => {
-  const { round } = JSON.parse(event.data);
-  render(round);
+  render(JSON.parse(event.data));
 });
