@@ -56,9 +56,13 @@ export function getHistory(db: DatabaseSync, limit: number): Round[] {
   return rows.map(rowToRound);
 }
 
-export function recordDelivery(db: DatabaseSync, delivery: Call): Round {
-  // A delivery always starts a new round, even if the previous one never
-  // got a prediction.
+// First click wins (ADR 0001): while a round is open, any other delivery is
+// rejected rather than starting a second one or replacing the waiting call —
+// otherwise the batter could end up predicting against a delivery that
+// changed after they'd already seen it was pending.
+export function recordDelivery(db: DatabaseSync, delivery: Call): Round | null {
+  if (hasPendingDelivery(db)) return null;
+
   db.prepare(`INSERT INTO rounds (delivery) VALUES (?)`).run(delivery);
   const row = db.prepare(`SELECT * FROM rounds ORDER BY id DESC LIMIT 1`).get() as Record<
     string,

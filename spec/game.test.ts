@@ -1,4 +1,4 @@
-import { expect, inject, it } from "vitest";
+import { beforeAll, expect, inject, it } from "vitest";
 
 // Exercises the one real-time slice end to end: a delivery is picked, a
 // prediction is locked in, and the result reaches an already-open SSE stream
@@ -24,6 +24,20 @@ function post(path: string, body: unknown): Promise<Response> {
     body: JSON.stringify(body),
   });
 }
+
+// These tests assume no delivery is open when the file starts. That's true on
+// a fresh database, but not on a long-lived one (the live deployment, or a
+// local run against an app left mid-round) — a stray pending delivery from
+// outside this suite would otherwise sit unresolved and quietly break later
+// assertions. "slow" is an arbitrary prediction: draining doesn't care which
+// call it resolves against, only that nothing is left open. 409 means nothing
+// was open, which ends the drain.
+beforeAll(async () => {
+  for (;;) {
+    const res = await post("/api/predict", { prediction: "slow" });
+    if (res.status === 409) break;
+  }
+});
 
 it("keeps the delivery secret until a prediction is locked in, then shows it in history", async () => {
   const before = await fetch(new URL("/api/state", baseUrl)).then((r) => r.json());
@@ -103,6 +117,22 @@ it("rejects a prediction with no open delivery", async () => {
 
   const res = await post("/api/predict", { prediction: "slow" });
   expect(res.status).toBe(409);
+});
+
+// ADR 0001: first click wins. A second delivery while one is already pending
+// must not start a new round or replace the waiting one — otherwise the
+// batter could end up predicting against a call that changed after they'd
+// already seen it was pending.
+it("rejects a second delivery while one is open, and the first is the one that resolves", async () => {
+  const first = await post("/api/deliver", { delivery: "fast" }).then((r) => r.json());
+  expect(first.pending).toBe(true);
+
+  const second = await post("/api/deliver", { delivery: "slow" });
+  expect(second.status).toBe(409);
+
+  const predicted = await post("/api/predict", { prediction: "fast" }).then((r) => r.json());
+  expect(predicted.pending).toBe(false);
+  expect(predicted.history[0]).toMatchObject({ delivery: "fast", prediction: "fast", result: "hit" });
 });
 
 it("lists at most the 10 most recent finished rounds, newest first", async () => {

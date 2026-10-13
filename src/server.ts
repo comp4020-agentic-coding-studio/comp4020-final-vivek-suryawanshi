@@ -134,7 +134,11 @@ const server = createServer(async (req, res) => {
         sendJson(res, 400, { error: "delivery must be 'fast' or 'slow'" });
         return;
       }
-      recordDelivery(db, body.delivery);
+      const delivered = recordDelivery(db, body.delivery);
+      if (!delivered) {
+        sendJson(res, 409, { error: "a delivery is already pending" });
+        return;
+      }
       const state = buildState();
       hub.broadcast("state", state);
       sendJson(res, 200, state);
