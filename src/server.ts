@@ -6,12 +6,16 @@ import {
   openDb,
   hasPendingDelivery,
   getHistory,
+  getOpenDeliveryBowler,
+  getPlayerName,
+  setPlayerName,
   recordDelivery,
   recordPrediction,
   type Call,
 } from "./db.ts";
 import { Hub } from "./hub.ts";
 import { renderReadme } from "./readme.ts";
+import { logJoined, logDelivered, logPredicted, logRejectedOwnDelivery, logRevealed } from "./log.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..");
@@ -43,6 +47,36 @@ function isCall(value: unknown): value is Call {
 }
 
 const HISTORY_LIMIT = 10;
+const ID_COOKIE = "fo_id";
+const MAX_NAME_LENGTH = 40;
+
+function parseCookies(header: string | undefined): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!header) return cookies;
+  for (const part of header.split(";")) {
+    const i = part.indexOf("=");
+    if (i === -1) continue;
+    const key = part.slice(0, i).trim();
+    const value = part.slice(i + 1).trim();
+    if (key) cookies[key] = decodeURIComponent(value);
+  }
+  return cookies;
+}
+
+// Every request gets a stable anonymous id — set here if the browser didn't
+// already send one — so ownership (who bowled this delivery) and naming can
+// both be keyed off it. A HttpOnly cookie, so a page script can't read or
+// forge another visitor's id.
+function identify(req: IncomingMessage, res: ServerResponse): string {
+  const cookies = parseCookies(req.headers.cookie);
+  const existing = cookies[ID_COOKIE];
+  if (existing) return existing;
+
+  const id = crypto.randomUUID();
+  const maxAge = 60 * 60 * 24 * 365;
+  res.setHeader("Set-Cookie", `${ID_COOKIE}=${id}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}`);
+  return id;
+}
 
 // A pending delivery is secret until a prediction is locked in — otherwise a
 // browser that receives this on load, or over the live stream, could just
@@ -53,6 +87,8 @@ interface ClientRound {
   id: number;
   delivery: Call;
   prediction: Call;
+  bowlerName: string;
+  predictorName: string;
   result: "hit" | "miss";
 }
 
@@ -66,6 +102,8 @@ function buildState(): ClientState {
     id: round.id,
     delivery: round.delivery as Call,
     prediction: round.prediction as Call,
+    bowlerName: round.bowlerName ?? "Anonymous",
+    predictorName: round.predictorName ?? "Anonymous",
     result: (round.delivery === round.prediction ? "hit" : "miss") as "hit" | "miss",
   }));
   return { pending: hasPendingDelivery(db), history };
@@ -89,6 +127,7 @@ function sendJson(res: ServerResponse, status: number, data: unknown): void {
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
+  const visitorId = identify(req, res);
 
   try {
     if (req.method === "GET" && url.pathname === "/") {
@@ -116,6 +155,26 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && url.pathname === "/api/me") {
+      sendJson(res, 200, { name: getPlayerName(db, visitorId) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/me") {
+      const body = (await readJson(req)) as { name?: unknown };
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      if (!name || name.length > MAX_NAME_LENGTH) {
+        sendJson(res, 400, {
+          error: `name must be between 1 and ${MAX_NAME_LENGTH} characters`,
+        });
+        return;
+      }
+      const isNew = setPlayerName(db, visitorId, name);
+      if (isNew) logJoined(name, visitorId);
+      sendJson(res, 200, { name });
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/stream") {
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
@@ -134,11 +193,12 @@ const server = createServer(async (req, res) => {
         sendJson(res, 400, { error: "delivery must be 'fast' or 'slow'" });
         return;
       }
-      const delivered = recordDelivery(db, body.delivery);
+      const delivered = recordDelivery(db, body.delivery, visitorId);
       if (!delivered) {
         sendJson(res, 409, { error: "a delivery is already pending" });
         return;
       }
+      logDelivered(getPlayerName(db, visitorId), visitorId);
       const state = buildState();
       hub.broadcast("state", state);
       sendJson(res, 200, state);
@@ -151,10 +211,30 @@ const server = createServer(async (req, res) => {
         sendJson(res, 400, { error: "prediction must be 'fast' or 'slow'" });
         return;
       }
-      const updated = recordPrediction(db, body.prediction);
+
+      const open = getOpenDeliveryBowler(db);
+      if (open && open.bowlerId === visitorId) {
+        logRejectedOwnDelivery(getPlayerName(db, visitorId), visitorId);
+        sendJson(res, 403, { error: "you can't predict your own delivery" });
+        return;
+      }
+
+      const updated = recordPrediction(db, body.prediction, visitorId);
       if (!updated) {
         sendJson(res, 409, { error: "no open delivery to predict against" });
         return;
+      }
+      logPredicted(getPlayerName(db, visitorId), visitorId);
+      if (updated.bowlerId) {
+        logRevealed(
+          getPlayerName(db, updated.bowlerId),
+          updated.bowlerId,
+          getPlayerName(db, visitorId),
+          visitorId,
+          updated.delivery as Call,
+          updated.prediction as Call,
+          updated.delivery === updated.prediction ? "hit" : "miss",
+        );
       }
       const state = buildState();
       hub.broadcast("state", state);

@@ -2,6 +2,10 @@ const statusEl = document.getElementById("status");
 const historyEl = document.getElementById("history");
 const deliverButtons = document.querySelectorAll('[data-role="deliver"] button');
 const predictButtons = document.querySelectorAll('[data-role="predict"] button');
+const nameGateEl = document.getElementById("name-gate");
+const gameEl = document.getElementById("game");
+const nameFormEl = document.getElementById("name-form");
+const nameInputEl = document.getElementById("name-input");
 
 function renderStatus(state) {
   for (const btn of deliverButtons) btn.classList.remove("selected");
@@ -37,7 +41,7 @@ function renderHistory(history) {
     ...history.map((round) => {
       const li = document.createElement("li");
       li.className = round.result;
-      li.textContent = `Delivered ${round.delivery}, predicted ${round.prediction} — ${round.result === "hit" ? "hit" : "miss"}`;
+      li.textContent = `${round.bowlerName} delivered ${round.delivery}, ${round.predictorName} predicted ${round.prediction} — ${round.result === "hit" ? "hit" : "miss"}`;
       return li;
     }),
   );
@@ -67,6 +71,34 @@ for (const btn of deliverButtons) {
 for (const btn of predictButtons) {
   btn.addEventListener("click", () => post("/api/predict", { prediction: btn.dataset.call }));
 }
+
+function showGame() {
+  nameGateEl.hidden = true;
+  gameEl.hidden = false;
+}
+
+nameFormEl.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const name = nameInputEl.value.trim();
+  if (!name) return;
+  const res = await fetch("/api/me", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (res.ok) showGame();
+});
+
+async function checkName() {
+  const res = await fetch("/api/me");
+  const { name } = await res.json();
+  if (name) {
+    nameInputEl.value = name;
+    showGame();
+  }
+}
+
+checkName();
 
 const stream = new EventSource("/api/stream");
 stream.addEventListener("state", (event) => {

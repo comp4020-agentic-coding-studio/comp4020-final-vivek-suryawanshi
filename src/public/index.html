@@ -11,31 +11,41 @@
       <h1>Final Over</h1>
       <p><a href="/readme/">About this app</a></p>
 
-      <section>
-        <h2>Bowler: deliver the ball</h2>
-        <div class="choices" data-role="deliver">
-          <button type="button" data-call="fast">Fast</button>
-          <button type="button" data-call="slow">Slow</button>
-        </div>
+      <section id="name-gate">
+        <h2>Who's playing?</h2>
+        <form id="name-form">
+          <input type="text" id="name-input" placeholder="Your name" maxlength="40" required />
+          <button type="submit">Join</button>
+        </form>
       </section>
 
-      <section>
-        <h2>Batter: lock your prediction</h2>
-        <div class="choices" data-role="predict">
-          <button type="button" data-call="fast">Fast</button>
-          <button type="button" data-call="slow">Slow</button>
-        </div>
-      </section>
+      <div id="game" hidden>
+        <section>
+          <h2>Bowler: deliver the ball</h2>
+          <div class="choices" data-role="deliver">
+            <button type="button" data-call="fast">Fast</button>
+            <button type="button" data-call="slow">Slow</button>
+          </div>
+        </section>
 
-      <section>
-        <h2>Result</h2>
-        <p id="status">Waiting for a delivery…</p>
-      </section>
+        <section>
+          <h2>Batter: lock your prediction</h2>
+          <div class="choices" data-role="predict">
+            <button type="button" data-call="fast">Fast</button>
+            <button type="button" data-call="slow">Slow</button>
+          </div>
+        </section>
 
-      <section>
-        <h2>Recent rounds</h2>
-        <ul id="history"></ul>
-      </section>
+        <section>
+          <h2>Result</h2>
+          <p id="status">Waiting for a delivery…</p>
+        </section>
+
+        <section>
+          <h2>Recent rounds</h2>
+          <ul id="history"></ul>
+        </section>
+      </div>
     </main>
     <script src="/client.js"></script>
   </body>
