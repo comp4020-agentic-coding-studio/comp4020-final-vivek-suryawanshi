@@ -18,9 +18,15 @@ Updates go out over server-sent events. When someone opens the page, the same co
 
 The game should get more interesting with more people around, because everyone sees the same history and can argue about what's coming next. Right now, though, the app doesn't give watchers anything to do.
 
+## Who's who
+
+When you first open the game, it asks for your name. The server also gives your browser a random id in a cookie. The id is what the server trusts, and the name is what everyone sees, so two people called Andy are still told apart. You can't predict a delivery you bowled yourself: the server checks your id against the bowler's and rejects it. The reasons and costs are in docs/adr/0002.
+
+This identity is really a browser, not an account. Someone who opens an incognito window becomes a new person and could predict their own delivery from there. I chose fast joining over accounts, because this is a game you play with people in the same room.
+
 ## What I haven't built (yet)
 
-Roles aren't enforced. Every browser shows both the bowler and batter buttons, so one person could bowl and then predict their own ball. I left this out to get a working real-time slice first, and how the app should behave with several people in it is the decision I'm writing up for this crit (see docs/adr). There are also no names, no full six-ball innings, no spectator predictions and no batting animation. Those come after I've seen whether the basic contest works.
+There are no full six-ball innings, no spectator predictions and no batting animation. Those come after I've seen whether the basic contest works.
 
 ## What informed the design
 
@@ -30,7 +36,7 @@ Parimal Satyal's *Rediscovering the Small Web* [2] is about personal, specific w
 
 ## What's checked and what's judged 
 
-Checked by tests in `spec/`: a delivery stays secret until a prediction is locked in, and a pending delivery's value is never in what a page loads; a wrong prediction is scored as a miss; a prediction is rejected when no delivery is waiting; a second delivery is rejected while one is already waiting, so the first click wins; and the page lists at most the ten most recent finished rounds, newest first. The course's two shipped checks also pass (the app answers at `/`, and this README is published at `/readme/`).
+Checked by tests in `spec/`: a delivery stays secret until a prediction is locked in, and a pending delivery's value is never in what a page loads; a wrong prediction is scored as a miss; a prediction is rejected when no delivery is waiting; a second delivery is rejected while one is already waiting, so the first click wins; you can't predict a delivery you bowled (the server returns an error); a delivery's log line never contains its value; old rounds from before names existed still load and show as "Anonymous"; and the page lists at most the ten most recent finished rounds, newest first. The course's two shipped checks also pass (the app answers at `/`, and this README is published at `/readme/`).
 
 Judged by people: whether it's fun. At the crit I want to watch whether people understand the reveal, start reading each other's patterns, and want to play again.
 
