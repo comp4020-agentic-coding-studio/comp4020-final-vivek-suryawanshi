@@ -87,7 +87,7 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
   return body ? JSON.parse(body) : {};
 }
 
-function send(res: ServerResponse, status: number, contentType: string, body: string): void {
+function send(res: ServerResponse, status: number, contentType: string, body: string | Buffer): void {
   res.writeHead(status, { "Content-Type": contentType });
   res.end(body);
 }
@@ -149,13 +149,43 @@ const VENDOR_FILES: Record<string, string> = {
 };
 
 const cosmosDir = join(__dirname, "public", "cosmos");
+const cosmosAssetsDir = join(cosmosDir, "assets");
 
-function serveCosmosModule(res: ServerResponse, pathname: string): boolean {
+const ASSET_CONTENT_TYPES: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+};
+
+// src/public/cosmos/*.js (our client modules) and src/public/cosmos/assets/*
+// (texture images for Task 3) are both served straight off disk, with the
+// same path-traversal guard; which directory a request resolves into decides
+// whether it's read as UTF-8 JS or raw binary image bytes.
+function serveCosmosFile(res: ServerResponse, pathname: string): boolean {
   if (!pathname.startsWith("/cosmos/")) return false;
   const rel = pathname.slice("/cosmos/".length);
-  // Reject traversal and anything that isn't a plain filename in this dir —
-  // pathname is attacker-controlled, so no ".." or subdirectory segments.
-  if (!rel || rel.includes("..") || rel.includes(sep) || rel.includes("/")) {
+  // Reject traversal and anything that isn't a plain relative path under
+  // this dir — pathname is attacker-controlled, so no ".." segments.
+  if (!rel || rel.includes("..")) {
+    send(res, 404, "text/plain", "not found");
+    return true;
+  }
+
+  if (rel.startsWith("assets/")) {
+    const assetRel = rel.slice("assets/".length);
+    const filePath = normalize(join(cosmosAssetsDir, assetRel));
+    const ext = extname(filePath);
+    const contentType = ASSET_CONTENT_TYPES[ext];
+    if (!filePath.startsWith(cosmosAssetsDir) || !existsSync(filePath) || !contentType) {
+      send(res, 404, "text/plain", "not found");
+      return true;
+    }
+    send(res, 200, contentType, readFileSync(filePath));
+    return true;
+  }
+
+  if (rel.includes(sep) || rel.includes("/")) {
     send(res, 404, "text/plain", "not found");
     return true;
   }
@@ -193,7 +223,7 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === "GET" && serveCosmosModule(res, url.pathname)) {
+    if (req.method === "GET" && serveCosmosFile(res, url.pathname)) {
       return;
     }
 

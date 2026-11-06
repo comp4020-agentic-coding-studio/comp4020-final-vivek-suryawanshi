@@ -1,39 +1,94 @@
 import * as THREE from "three";
 import { OrbitControls } from "/vendor/OrbitControls.js";
 import { computeLayout } from "./distances.js";
+import {
+  loadSaturnBandsTexture,
+  loadSaturnRingTexture,
+  loadEarthDaymapTexture,
+  loadEarthCloudsTexture,
+  applyRadialRingUVs,
+} from "./textures.js";
 
-// Cheap-to-render looks for each object: real meshes for the two solar-system
-// bodies and the one visible star, THREE.Points clouds for everything too
-// large or too uncertain to model as a surface. No postprocessing (no bloom
-// passes) — "glow" comes from emissive materials and additive blending only,
-// so this runs fine on integrated graphics.
+// Cheap-to-render looks for each object: textured spheres for the two
+// solar-system bodies, emissive spheres for the visible stars, THREE.Points
+// clouds for everything too large or too uncertain to model as a surface.
+// No postprocessing (no bloom passes) — "glow" comes from emissive materials
+// and additive blending only, so this runs fine on integrated graphics. The
+// handful of textures used (Saturn's bands/rings, Earth's surface/clouds)
+// are small, pre-compressed JPEGs/PNGs — see textures.js and
+// src/content/CREDITS.md.
 function buildObjectMesh(id, lowGraphics) {
   switch (id) {
     case "earth": {
-      const geometry = new THREE.SphereGeometry(1, lowGraphics ? 16 : 32, lowGraphics ? 12 : 24);
-      const material = new THREE.MeshStandardMaterial({ color: 0x2f6fb3, roughness: 0.8 });
-      return new THREE.Mesh(geometry, material);
+      const segments = lowGraphics ? [16, 12] : [48, 32];
+      const geometry = new THREE.SphereGeometry(1, ...segments);
+      const material = new THREE.MeshStandardMaterial({
+        map: loadEarthDaymapTexture(),
+        roughness: 0.85,
+        metalness: 0,
+      });
+      const earth = new THREE.Mesh(geometry, material);
+
+      // A thin, slightly larger shell for cloud cover reads as atmosphere at
+      // a glance without a second light pass or a postprocessing pass.
+      if (!lowGraphics) {
+        const clouds = new THREE.Mesh(
+          new THREE.SphereGeometry(1.01, 32, 24),
+          new THREE.MeshStandardMaterial({
+            map: loadEarthCloudsTexture(),
+            transparent: true,
+            opacity: 0.45,
+            depthWrite: false,
+          }),
+        );
+        clouds.userData.isCloudLayer = true;
+        earth.add(clouds);
+      }
+      return earth;
     }
     case "saturn": {
       const group = new THREE.Group();
+      const bodySegments = lowGraphics ? [16, 12] : [48, 32];
       const body = new THREE.Mesh(
-        new THREE.SphereGeometry(1.3, lowGraphics ? 16 : 32, lowGraphics ? 12 : 24),
-        new THREE.MeshStandardMaterial({ color: 0xd9c08a, roughness: 0.7 }),
+        new THREE.SphereGeometry(1.3, ...bodySegments),
+        new THREE.MeshStandardMaterial({
+          map: loadSaturnBandsTexture(),
+          roughness: 0.75,
+          metalness: 0,
+        }),
       );
+      // Saturn's real oblateness (polar radius ~90% of equatorial) reads
+      // clearly even at this scale and costs nothing extra to render.
+      body.scale.y = 0.9;
+
+      const innerRadius = 1.6;
+      const outerRadius = 2.9;
+      const ringGeometry = new THREE.RingGeometry(innerRadius, outerRadius, lowGraphics ? 48 : 128, 1);
+      applyRadialRingUVs(ringGeometry, innerRadius, outerRadius);
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(1.8, 2.8, lowGraphics ? 24 : 64),
-        new THREE.MeshBasicMaterial({ color: 0xcdbf9b, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }),
+        ringGeometry,
+        new THREE.MeshStandardMaterial({
+          map: loadSaturnRingTexture(),
+          alphaMap: loadSaturnRingTexture(),
+          transparent: true,
+          side: THREE.DoubleSide,
+          roughness: 0.9,
+          metalness: 0,
+        }),
       );
-      ring.rotation.x = Math.PI / 2.3;
+      // Saturn's real axial tilt is about 27 degrees from vertical; the ring
+      // plane tilts with it rather than sitting arbitrarily angled.
+      ring.rotation.x = Math.PI / 2 - THREE.MathUtils.degToRad(27);
       group.add(body, ring);
       return group;
     }
     case "betelgeuse": {
       const geometry = new THREE.SphereGeometry(2.4, lowGraphics ? 16 : 32, lowGraphics ? 12 : 24);
       const material = new THREE.MeshStandardMaterial({
-        color: 0xff5a2a,
+        color: 0xff6a35,
         emissive: 0xff3300,
-        emissiveIntensity: 1.1,
+        emissiveIntensity: 1.3,
+        roughness: 1,
       });
       return new THREE.Mesh(geometry, material);
     }
@@ -44,12 +99,13 @@ function buildObjectMesh(id, lowGraphics) {
       const material = new THREE.MeshStandardMaterial({
         color: 0xffe08a,
         emissive: 0xffb02e,
-        emissiveIntensity: 0.6,
+        emissiveIntensity: 0.7,
+        roughness: 1,
       });
       return new THREE.Mesh(geometry, material);
     }
     case "andromeda":
-      return buildPointCloud({ count: lowGraphics ? 800 : 4000, spread: 3, flatten: 0.15, color: 0xaad4ff, opacity: 0.8 });
+      return buildPointCloud({ count: lowGraphics ? 800 : 4000, spread: 3, flatten: 0.15, color: 0xaad4ff, opacity: 0.8, core: true });
     case "quipu":
       return buildChainCloud({ count: lowGraphics ? 400 : 2000, length: 6, color: 0x7fffd4 });
     case "great-wall":
@@ -62,14 +118,19 @@ function buildObjectMesh(id, lowGraphics) {
   }
 }
 
-function buildPointCloud({ count, spread, flatten, color, opacity, jitter = 1 }) {
+function buildPointCloud({ count, spread, flatten, color, opacity, jitter = 1, core = false }) {
   const positions = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
-    const r = spread * Math.pow(Math.random(), 0.5) * jitter;
+    // Exponent > 1 concentrates more points toward the centre (a galaxy's
+    // bright core and tightly-wound inner arms) while still thinning out
+    // toward the edge; exponent 0.5 (the non-core case) instead spreads
+    // points uniformly across the disc's area, which reads better for an
+    // amorphous cloud like the Great Wall.
+    const r = spread * Math.pow(Math.random(), core ? 1.8 : 0.5) * jitter;
     const theta = Math.random() * Math.PI * 2;
     const x = Math.cos(theta) * r;
     const z = Math.sin(theta) * r;
-    const y = (Math.random() - 0.5) * spread * flatten;
+    const y = (Math.random() - 0.5) * spread * flatten * (1 - 0.6 * (r / spread));
     positions.set([x, y, z], i * 3);
   }
   const geometry = new THREE.BufferGeometry();
@@ -82,7 +143,19 @@ function buildPointCloud({ count, spread, flatten, color, opacity, jitter = 1 })
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
-  return new THREE.Points(geometry, material);
+  const points = new THREE.Points(geometry, material);
+
+  if (!core) return points;
+
+  // A small bright core glow gives a galaxy an obvious bulge at a glance,
+  // for the cost of one extra low-poly sphere.
+  const group = new THREE.Group();
+  const bulge = new THREE.Mesh(
+    new THREE.SphereGeometry(spread * 0.08, 12, 8),
+    new THREE.MeshBasicMaterial({ color: 0xfff4d6, transparent: true, opacity: 0.9 }),
+  );
+  group.add(bulge, points);
+  return group;
 }
 
 // A long, glowing chain of points following a gently curved path — Quipu's
@@ -217,6 +290,11 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
       controls.update();
       for (const { mesh } of objects.values()) {
         mesh.rotation.y += 0.001;
+        // The cloud shell drifts slightly faster than the globe beneath it,
+        // which is the one cue that reads as "clouds moving" rather than
+        // "texture painted on."
+        const clouds = mesh.children.find((child) => child.userData.isCloudLayer);
+        if (clouds) clouds.rotation.y += 0.0006;
       }
       renderer.render(scene, camera);
     }
