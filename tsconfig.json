@@ -10,6 +10,10 @@
     "allowImportingTsExtensions": true,
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["node"],
+    // src/public/cosmos/*.js is the browser client: plain JS, no build step.
+    // allowJs lets spec/ import it directly to test pure logic and DOM
+    // rendering; checkJs stays off so those files aren't type-checked.
+    "allowJs": true,
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,

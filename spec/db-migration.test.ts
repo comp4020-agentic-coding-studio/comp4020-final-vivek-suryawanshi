@@ -3,19 +3,15 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { openDb, getHistory } from "../src/db.ts";
+import { openDb, addObservation, getObservations } from "../src/db.ts";
 
-// A redeploy runs openDb() against the live Fly volume, which already has
-// rounds from before bowler_id/predictor_id existed. This builds a database
-// file by hand with exactly the pre-crit-10 schema, then checks openDb()
-// upgrades it in place without losing — or choking on — what's already there.
 let dir: string;
 let dbPath: string;
 let opened: DatabaseSync[] = [];
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "final-over-migration-"));
-  dbPath = join(dir, "final-over.db");
+  dir = mkdtempSync(join(tmpdir(), "cosmos-db-"));
+  dbPath = join(dir, "cosmos.db");
   opened = [];
 });
 
@@ -33,36 +29,20 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-it("opens an old-schema database, adds the missing columns, and keeps old rounds as Anonymous", () => {
-  const legacy = new DatabaseSync(dbPath);
-  opened.push(legacy);
-  legacy.exec(`
-    CREATE TABLE rounds (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      delivery TEXT,
-      prediction TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `);
-  legacy.prepare(`INSERT INTO rounds (delivery, prediction) VALUES ('fast', 'fast')`).run();
-  legacy.close();
-
+it("creates the players and observations tables on a fresh database", () => {
   const db = openDb(dbPath);
   opened.push(db);
 
-  const columns = db.prepare(`PRAGMA table_info(rounds)`).all() as { name: string }[];
-  const names = columns.map((c) => c.name);
-  expect(names).toContain("bowler_id");
-  expect(names).toContain("predictor_id");
+  const tables = db
+    .prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`)
+    .all() as { name: string }[];
+  const names = tables.map((t) => t.name);
+  expect(names).toContain("players");
+  expect(names).toContain("observations");
 
-  const history = getHistory(db, 10);
-  expect(history).toHaveLength(1);
-  expect(history[0]).toMatchObject({
-    delivery: "fast",
-    prediction: "fast",
-    bowlerName: null,
-    predictorName: null,
-  });
+  const observation = addObservation(db, "earth", "visitor-1", "Hello COSMOS");
+  expect(observation).toMatchObject({ objectId: "earth", authorId: "visitor-1", text: "Hello COSMOS" });
+  expect(getObservations(db, "earth")).toHaveLength(1);
 });
 
 it("is idempotent — opening an already-migrated database twice doesn't fail", () => {

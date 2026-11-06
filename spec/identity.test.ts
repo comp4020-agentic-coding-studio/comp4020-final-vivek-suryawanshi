@@ -1,10 +1,11 @@
-import { beforeEach, expect, inject, it } from "vitest";
+import { expect, inject, it } from "vitest";
 
-// Crit 10: a person can't predict a delivery they bowled. Ownership is keyed
-// by the anonymous cookie each browser gets, so this simulates two different
-// browsers by capturing two different Set-Cookie values and replaying each as
-// a Cookie header — same pattern a real browser follows automatically.
+// Ownership is keyed by the anonymous cookie each browser gets, so this
+// simulates two different browsers by capturing two different Set-Cookie
+// values and replaying each as a Cookie header — same pattern a real browser
+// follows automatically.
 const baseUrl = inject("baseUrl");
+const OBJECT_ID = "earth";
 
 async function newCookie(): Promise<string> {
   const res = await fetch(new URL("/", baseUrl));
@@ -13,56 +14,90 @@ async function newCookie(): Promise<string> {
   return setCookie.split(";")[0];
 }
 
-function post(path: string, body: unknown, cookie: string): Promise<Response> {
+function request(path: string, init: RequestInit, cookie: string): Promise<Response> {
   return fetch(new URL(path, baseUrl), {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Cookie: cookie },
-    body: JSON.stringify(body),
+    ...init,
+    headers: { ...init.headers, Cookie: cookie },
   });
 }
 
-// Drain any stray pending delivery before every test, same approach as
-// game.test.ts, so each test starts from a known state even if an earlier
-// one in this file failed partway through and left a round open.
-beforeEach(async () => {
-  const cookie = await newCookie();
-  for (;;) {
-    const res = await post("/api/predict", { prediction: "slow" }, cookie);
-    if (res.status === 409) break;
-  }
-});
+function post(path: string, body: unknown, cookie: string): Promise<Response> {
+  return request(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }, cookie);
+}
 
-it("rejects the bowler's own prediction with 403 and a clear message", async () => {
-  const bowler = await newCookie();
-
-  const delivered = await post("/api/deliver", { delivery: "fast" }, bowler);
-  expect(delivered.status).toBe(200);
-
-  const res = await post("/api/predict", { prediction: "fast" }, bowler);
-  expect(res.status).toBe(403);
+async function addObservation(cookie: string, text: string): Promise<{ id: number }> {
+  const res = await post(`/api/objects/${OBJECT_ID}/observations`, { text }, cookie);
+  expect(res.status).toBe(201);
   const body = await res.json();
-  expect(body.error).toMatch(/own delivery/i);
+  return body.observation;
+}
 
-  // The round is still open for someone else — clean it up.
+it("lets only the author edit their own observation", async () => {
+  const author = await newCookie();
   const other = await newCookie();
-  await post("/api/predict", { prediction: "fast" }, other);
+  const observation = await addObservation(author, "Original text");
+
+  const rejected = await request(
+    `/api/objects/${OBJECT_ID}/observations/${observation.id}`,
+    { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "Hijacked" }) },
+    other,
+  );
+  expect(rejected.status).toBe(403);
+
+  const allowed = await request(
+    `/api/objects/${OBJECT_ID}/observations/${observation.id}`,
+    { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "Edited by author" }) },
+    author,
+  );
+  expect(allowed.status).toBe(200);
+  const body = await allowed.json();
+  expect(body.observation.text).toBe("Edited by author");
 });
 
-it("lets someone other than the bowler predict the same delivery", async () => {
-  const bowler = await newCookie();
+it("lets only the author delete their own observation", async () => {
+  const author = await newCookie();
   const other = await newCookie();
+  const observation = await addObservation(author, "To be deleted");
 
-  const delivered = await post("/api/deliver", { delivery: "slow" }, bowler);
-  expect(delivered.status).toBe(200);
+  const rejected = await request(
+    `/api/objects/${OBJECT_ID}/observations/${observation.id}`,
+    { method: "DELETE" },
+    other,
+  );
+  expect(rejected.status).toBe(403);
 
-  const res = await post("/api/predict", { prediction: "slow" }, other);
-  expect(res.status).toBe(200);
-  const body = await res.json();
-  expect(body.history[0]).toMatchObject({ delivery: "slow", prediction: "slow", result: "hit" });
+  const stillThere = await request(`/api/objects/${OBJECT_ID}/observations`, { method: "GET" }, author);
+  const stillThereBody = await stillThere.json();
+  expect(stillThereBody.observations.some((o: { id: number }) => o.id === observation.id)).toBe(true);
+
+  const allowed = await request(
+    `/api/objects/${OBJECT_ID}/observations/${observation.id}`,
+    { method: "DELETE" },
+    author,
+  );
+  expect(allowed.status).toBe(200);
+
+  const after = await request(`/api/objects/${OBJECT_ID}/observations`, { method: "GET" }, author);
+  const afterBody = await after.json();
+  expect(afterBody.observations.some((o: { id: number }) => o.id === observation.id)).toBe(false);
 });
 
-it("still rejects a prediction with no open delivery (own or otherwise)", async () => {
-  const cookie = await newCookie();
-  const res = await post("/api/predict", { prediction: "fast" }, cookie);
-  expect(res.status).toBe(409);
+it("marks an observation as mine only for its author", async () => {
+  const author = await newCookie();
+  const other = await newCookie();
+  const observation = await addObservation(author, "Whose is this?");
+
+  const asAuthor = await request(`/api/objects/${OBJECT_ID}/observations`, { method: "GET" }, author);
+  const asAuthorBody = await asAuthor.json();
+  const mine = asAuthorBody.observations.find((o: { id: number }) => o.id === observation.id);
+  expect(mine.mine).toBe(true);
+
+  const asOther = await request(`/api/objects/${OBJECT_ID}/observations`, { method: "GET" }, other);
+  const asOtherBody = await asOther.json();
+  const theirs = asOtherBody.observations.find((o: { id: number }) => o.id === observation.id);
+  expect(theirs.mine).toBe(false);
+
+  // No author name (or id) is ever serialised to the client.
+  expect(mine).not.toHaveProperty("authorName");
+  expect(mine).not.toHaveProperty("authorId");
 });

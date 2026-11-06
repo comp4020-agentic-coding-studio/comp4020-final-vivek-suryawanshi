@@ -3,50 +3,67 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Final Over</title>
+    <title>COSMOS</title>
     <link rel="stylesheet" href="/style.css" />
+    <script type="importmap">
+      { "imports": { "three": "/vendor/three.module.js" } }
+    </script>
   </head>
   <body>
     <main>
-      <h1>Final Over</h1>
-      <p><a href="/readme/">About this app</a></p>
+      <header>
+        <h1>COSMOS</h1>
+        <p><a href="/readme/">About this app</a></p>
+      </header>
 
       <section id="name-gate">
-        <h2>Who's playing?</h2>
+        <h2>Who's exploring?</h2>
         <form id="name-form">
           <input type="text" id="name-input" placeholder="Your name" maxlength="40" required />
-          <button type="submit">Join</button>
+          <button type="submit">Explore</button>
         </form>
       </section>
 
-      <div id="game" hidden>
-        <section>
-          <h2>Bowler: deliver the ball</h2>
-          <div class="choices" data-role="deliver">
-            <button type="button" data-call="fast">Fast</button>
-            <button type="button" data-call="slow">Slow</button>
-          </div>
-        </section>
+      <div id="app" hidden>
+        <div id="scene-wrap">
+          <canvas id="cosmos-canvas" aria-label="3D view of space. Use the object list below to select a destination with a keyboard."></canvas>
 
-        <section>
-          <h2>Batter: lock your prediction</h2>
-          <div class="choices" data-role="predict">
-            <button type="button" data-call="fast">Fast</button>
-            <button type="button" data-call="slow">Slow</button>
-          </div>
-        </section>
+          <label id="low-graphics-label">
+            <input type="checkbox" id="low-graphics-toggle" />
+            Low graphics
+          </label>
+        </div>
 
-        <section>
-          <h2>Result</h2>
-          <p id="status">Waiting for a delivery…</p>
-        </section>
-
-        <section>
-          <h2>Recent rounds</h2>
-          <ul id="history"></ul>
-        </section>
+        <nav id="object-list-wrap" aria-label="Objects to explore">
+          <h2>Objects</h2>
+          <div id="object-list"></div>
+        </nav>
       </div>
+
+      <dialog id="object-panel" aria-labelledby="panel-name">
+        <button type="button" id="panel-close" aria-label="Close">×</button>
+        <canvas id="panel-preview-canvas"></canvas>
+        <h2 id="panel-name"></h2>
+        <p id="panel-lookback" class="lookback"></p>
+        <p id="panel-text"></p>
+
+        <h3>Facts</h3>
+        <ul id="panel-facts"></ul>
+
+        <h3>Sources</h3>
+        <ul id="panel-sources"></ul>
+
+        <h3>Discovery Atlas</h3>
+        <form id="observation-form">
+          <textarea id="observation-input" maxlength="280" placeholder="Share an observation…" required></textarea>
+          <div class="observation-form-footer">
+            <span id="observation-char-count">0/280</span>
+            <button type="submit">Add observation</button>
+          </div>
+        </form>
+        <ul id="observation-list"></ul>
+      </dialog>
     </main>
-    <script src="/client.js"></script>
+    <script type="module" src="/cosmos/main.js"></script>
   </body>
 </html>

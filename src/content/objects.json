@@ -1,0 +1,68 @@
+{
+  "earth": {
+    "name": "Earth",
+    "text": "PLACEHOLDER: our home planet. Replace this with real copy.",
+    "lookbackTime": "~8 minutes (light from the Sun)",
+    "sources": ["https://science.nasa.gov/earth/facts/"],
+    "facts": [
+      { "label": "observed", "text": "PLACEHOLDER fact about Earth." }
+    ]
+  },
+  "saturn": {
+    "name": "Saturn",
+    "text": "PLACEHOLDER: the ringed planet. Replace this with real copy.",
+    "lookbackTime": "~80 minutes",
+    "sources": ["https://science.nasa.gov/saturn/facts/"],
+    "facts": [
+      { "label": "observed", "text": "PLACEHOLDER fact about Saturn's rings." }
+    ]
+  },
+  "betelgeuse": {
+    "name": "Betelgeuse",
+    "text": "PLACEHOLDER: a red supergiant star nearing the end of its life. Replace this with real copy.",
+    "lookbackTime": "~548 years",
+    "sources": ["https://science.nasa.gov/mission/hubble/"],
+    "facts": [
+      { "label": "observed", "text": "PLACEHOLDER fact about Betelgeuse's brightness." },
+      { "label": "proposed, not confirmed", "text": "PLACEHOLDER: exact distance and supernova timing are debated." }
+    ]
+  },
+  "gaia-bh1": {
+    "name": "Gaia BH1",
+    "text": "PLACEHOLDER: a Sun-like star orbiting a dormant stellar-mass black hole. Only the star is shown for now; the black hole itself stays invisible. Replace this with real copy.",
+    "lookbackTime": "~1,560 years",
+    "sources": ["https://arxiv.org/abs/2209.06833"],
+    "facts": [
+      { "label": "observed", "text": "PLACEHOLDER fact about the visible companion star." },
+      { "label": "reconstructed", "text": "PLACEHOLDER: the black hole's mass is inferred from the star's orbit." }
+    ]
+  },
+  "andromeda": {
+    "name": "Andromeda Galaxy",
+    "text": "PLACEHOLDER: our nearest large galactic neighbour. Replace this with real copy.",
+    "lookbackTime": "~2.5 million years",
+    "sources": ["https://science.nasa.gov/mission/hubble/"],
+    "facts": [
+      { "label": "observed", "text": "PLACEHOLDER fact about Andromeda's shape." },
+      { "label": "simulated", "text": "PLACEHOLDER: its future collision with the Milky Way is modelled, not observed." }
+    ]
+  },
+  "quipu": {
+    "name": "Quipu",
+    "text": "PLACEHOLDER: one of the largest known structures in the universe, a long chain of galaxy clusters. Replace this with real copy.",
+    "lookbackTime": "~425 million years",
+    "sources": ["https://arxiv.org/abs/2409.02807"],
+    "facts": [
+      { "label": "reconstructed", "text": "PLACEHOLDER: its shape is reconstructed from galaxy survey data." }
+    ]
+  },
+  "great-wall": {
+    "name": "Hercules–Corona Borealis Great Wall",
+    "text": "PLACEHOLDER: a vast, loosely-defined concentration of galaxies — one of the largest structures ever proposed. Replace this with real copy.",
+    "lookbackTime": "~10 billion years",
+    "sources": ["https://arxiv.org/abs/1311.1104"],
+    "facts": [
+      { "label": "proposed, not confirmed", "text": "PLACEHOLDER: whether this is a single coherent structure is debated." }
+    ]
+  }
+}

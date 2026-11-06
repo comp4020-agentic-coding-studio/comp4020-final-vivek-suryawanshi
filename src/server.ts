@@ -1,40 +1,46 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, extname, join, normalize, sep } from "node:path";
 import {
   openDb,
-  hasPendingDelivery,
-  getHistory,
-  getOpenDeliveryBowler,
   getPlayerName,
   setPlayerName,
-  recordDelivery,
-  recordPrediction,
-  type Call,
+  getObservations,
+  addObservation,
+  getObservation,
+  updateObservation,
+  deleteObservation,
 } from "./db.ts";
 import { Hub } from "./hub.ts";
 import { renderReadme } from "./readme.ts";
-import { logJoined, logDelivered, logPredicted, logRejectedOwnDelivery, logRevealed } from "./log.ts";
+import {
+  logJoined,
+  logOpened,
+  logObservationAdded,
+  logObservationEdited,
+  logObservationDeleted,
+  logRejected,
+} from "./log.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..");
 const port = Number(process.env.PORT ?? 8080);
-const dbPath = process.env.DB_PATH ?? "/data/final-over.db";
+const dbPath = process.env.DB_PATH ?? "/data/cosmos.db";
 
 const db = openDb(dbPath);
 const hub = new Hub();
 
 const indexHtml = readFileSync(join(__dirname, "public", "index.html"), "utf8");
-const clientJs = readFileSync(join(__dirname, "public", "client.js"), "utf8");
 const styleCss = readFileSync(join(__dirname, "public", "style.css"), "utf8");
+const objectsJson = readFileSync(join(__dirname, "content", "objects.json"), "utf8");
 const readmeHtml = renderReadme(readFileSync(join(repoRoot, "README.md"), "utf8"));
 const readmePage = `<!doctype html>
 <html lang="en-AU">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Final Over — README</title>
+    <title>COSMOS — README</title>
   </head>
   <body>
     ${readmeHtml}
@@ -42,13 +48,9 @@ const readmePage = `<!doctype html>
 </html>
 `;
 
-function isCall(value: unknown): value is Call {
-  return value === "fast" || value === "slow";
-}
-
-const HISTORY_LIMIT = 10;
-const ID_COOKIE = "fo_id";
+const ID_COOKIE = "cosmos_id";
 const MAX_NAME_LENGTH = 40;
+const MAX_OBSERVATION_LENGTH = 280;
 
 function parseCookies(header: string | undefined): Record<string, string> {
   const cookies: Record<string, string> = {};
@@ -64,9 +66,9 @@ function parseCookies(header: string | undefined): Record<string, string> {
 }
 
 // Every request gets a stable anonymous id — set here if the browser didn't
-// already send one — so ownership (who bowled this delivery) and naming can
-// both be keyed off it. A HttpOnly cookie, so a page script can't read or
-// forge another visitor's id.
+// already send one — so ownership (who wrote this observation) and naming
+// can both be keyed off it. A HttpOnly cookie, so a page script can't read
+// or forge another visitor's id.
 function identify(req: IncomingMessage, res: ServerResponse): string {
   const cookies = parseCookies(req.headers.cookie);
   const existing = cookies[ID_COOKIE];
@@ -76,37 +78,6 @@ function identify(req: IncomingMessage, res: ServerResponse): string {
   const maxAge = 60 * 60 * 24 * 365;
   res.setHeader("Set-Cookie", `${ID_COOKIE}=${id}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}`);
   return id;
-}
-
-// A pending delivery is secret until a prediction is locked in — otherwise a
-// browser that receives this on load, or over the live stream, could just
-// read the answer off it. getHistory() only ever returns rounds where both
-// calls are already in, so there's no delivery value here to withhold: a
-// pending round simply isn't a row this query can return.
-interface ClientRound {
-  id: number;
-  delivery: Call;
-  prediction: Call;
-  bowlerName: string;
-  predictorName: string;
-  result: "hit" | "miss";
-}
-
-interface ClientState {
-  pending: boolean;
-  history: ClientRound[];
-}
-
-function buildState(): ClientState {
-  const history = getHistory(db, HISTORY_LIMIT).map((round) => ({
-    id: round.id,
-    delivery: round.delivery as Call,
-    prediction: round.prediction as Call,
-    bowlerName: round.bowlerName ?? "Anonymous",
-    predictorName: round.predictorName ?? "Anonymous",
-    result: (round.delivery === round.prediction ? "hit" : "miss") as "hit" | "miss",
-  }));
-  return { pending: hasPendingDelivery(db), history };
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {
@@ -125,6 +96,78 @@ function sendJson(res: ServerResponse, status: number, data: unknown): void {
   send(res, status, "application/json", JSON.stringify(data));
 }
 
+// Attribution on the wire is never a name — only whether the viewer wrote
+// it. The client renders "you" or "an explorer" from this flag; who actually
+// wrote it is resolved server-side for log lines only, never serialised.
+// objectId rides along so a broadcast — sent to every connected client
+// regardless of which panel they have open — lets each browser filter to the
+// object it cares about.
+interface ClientObservation {
+  id: number;
+  objectId: string;
+  text: string;
+  createdAt: string;
+  updatedAt: string | null;
+  mine: boolean;
+}
+
+function toClientObservation(
+  observation: {
+    id: number;
+    objectId: string;
+    text: string;
+    createdAt: string;
+    updatedAt: string | null;
+    authorId: string;
+  },
+  viewerId: string,
+): ClientObservation {
+  return {
+    id: observation.id,
+    objectId: observation.objectId,
+    text: observation.text,
+    createdAt: observation.createdAt,
+    updatedAt: observation.updatedAt,
+    mine: observation.authorId === viewerId,
+  };
+}
+
+// Static assets served from node_modules (three's ESM build and the
+// OrbitControls addon) and from src/public/cosmos/ (our own client modules).
+// No bundler: both are read straight off disk and served as-is.
+const VENDOR_FILES: Record<string, string> = {
+  "/vendor/three.module.js": join(repoRoot, "node_modules", "three", "build", "three.module.js"),
+  "/vendor/OrbitControls.js": join(
+    repoRoot,
+    "node_modules",
+    "three",
+    "examples",
+    "jsm",
+    "controls",
+    "OrbitControls.js",
+  ),
+};
+
+const cosmosDir = join(__dirname, "public", "cosmos");
+
+function serveCosmosModule(res: ServerResponse, pathname: string): boolean {
+  if (!pathname.startsWith("/cosmos/")) return false;
+  const rel = pathname.slice("/cosmos/".length);
+  // Reject traversal and anything that isn't a plain filename in this dir —
+  // pathname is attacker-controlled, so no ".." or subdirectory segments.
+  if (!rel || rel.includes("..") || rel.includes(sep) || rel.includes("/")) {
+    send(res, 404, "text/plain", "not found");
+    return true;
+  }
+  const filePath = normalize(join(cosmosDir, rel));
+  if (!filePath.startsWith(cosmosDir) || !existsSync(filePath) || extname(filePath) !== ".js") {
+    send(res, 404, "text/plain", "not found");
+    return true;
+  }
+  send(res, 200, "text/javascript; charset=utf-8", readFileSync(filePath, "utf8"));
+  return true;
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
   const visitorId = identify(req, res);
@@ -135,23 +178,27 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === "GET" && url.pathname === "/client.js") {
-      send(res, 200, "text/javascript; charset=utf-8", clientJs);
-      return;
-    }
-
     if (req.method === "GET" && url.pathname === "/style.css") {
       send(res, 200, "text/css; charset=utf-8", styleCss);
       return;
     }
 
-    if (req.method === "GET" && url.pathname === "/readme/") {
-      send(res, 200, "text/html; charset=utf-8", readmePage);
+    if (req.method === "GET" && url.pathname === "/api/objects") {
+      send(res, 200, "application/json", objectsJson);
       return;
     }
 
-    if (req.method === "GET" && url.pathname === "/api/state") {
-      sendJson(res, 200, buildState());
+    if (req.method === "GET" && url.pathname in VENDOR_FILES) {
+      send(res, 200, "text/javascript; charset=utf-8", readFileSync(VENDOR_FILES[url.pathname], "utf8"));
+      return;
+    }
+
+    if (req.method === "GET" && serveCosmosModule(res, url.pathname)) {
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/readme/") {
+      send(res, 200, "text/html; charset=utf-8", readmePage);
       return;
     }
 
@@ -181,65 +228,90 @@ const server = createServer(async (req, res) => {
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
       });
-      res.write(`event: state\ndata: ${JSON.stringify(buildState())}\n\n`);
-      hub.add(res);
+      // A comment-only SSE line, just to flush the headers immediately —
+      // otherwise Node holds them until the first real write, and a client
+      // awaiting the response (or its headers) hangs until the next
+      // broadcast happens to come along.
+      res.write(": connected\n\n");
+      hub.add(res, visitorId);
       req.on("close", () => hub.remove(res));
       return;
     }
 
-    if (req.method === "POST" && url.pathname === "/api/deliver") {
-      const body = (await readJson(req)) as { delivery?: unknown };
-      if (!isCall(body.delivery)) {
-        sendJson(res, 400, { error: "delivery must be 'fast' or 'slow'" });
+    const observationsMatch = url.pathname.match(/^\/api\/objects\/([^/]+)\/observations\/?$/);
+    if (observationsMatch) {
+      const objectId = decodeURIComponent(observationsMatch[1]);
+
+      if (req.method === "GET") {
+        logOpened(objectId, getPlayerName(db, visitorId), visitorId);
+        const observations = getObservations(db, objectId).map((o) => toClientObservation(o, visitorId));
+        sendJson(res, 200, { observations });
         return;
       }
-      const delivered = recordDelivery(db, body.delivery, visitorId);
-      if (!delivered) {
-        sendJson(res, 409, { error: "a delivery is already pending" });
+
+      if (req.method === "POST") {
+        const body = (await readJson(req)) as { text?: unknown };
+        const text = typeof body.text === "string" ? body.text.trim() : "";
+        if (!text || text.length > MAX_OBSERVATION_LENGTH) {
+          sendJson(res, 400, {
+            error: `text must be between 1 and ${MAX_OBSERVATION_LENGTH} characters`,
+          });
+          return;
+        }
+        const created = addObservation(db, objectId, visitorId, text);
+        logObservationAdded(getPlayerName(db, visitorId), visitorId, objectId);
+        const payload = (viewerId: string) => ({ observation: toClientObservation(created, viewerId) });
+        hub.broadcast("observation-added", payload);
+        sendJson(res, 201, payload(visitorId));
         return;
       }
-      logDelivered(getPlayerName(db, visitorId), visitorId);
-      const state = buildState();
-      hub.broadcast("state", state);
-      sendJson(res, 200, state);
-      return;
     }
 
-    if (req.method === "POST" && url.pathname === "/api/predict") {
-      const body = (await readJson(req)) as { prediction?: unknown };
-      if (!isCall(body.prediction)) {
-        sendJson(res, 400, { error: "prediction must be 'fast' or 'slow'" });
+    const observationMatch = url.pathname.match(/^\/api\/objects\/([^/]+)\/observations\/(\d+)\/?$/);
+    if (observationMatch) {
+      const objectId = decodeURIComponent(observationMatch[1]);
+      const obsId = Number(observationMatch[2]);
+      const existing = getObservation(db, obsId);
+
+      if (!existing || existing.objectId !== objectId) {
+        sendJson(res, 404, { error: "observation not found" });
         return;
       }
 
-      const open = getOpenDeliveryBowler(db);
-      if (open && open.bowlerId === visitorId) {
-        logRejectedOwnDelivery(getPlayerName(db, visitorId), visitorId);
-        sendJson(res, 403, { error: "you can't predict your own delivery" });
+      if (req.method === "PATCH") {
+        if (existing.authorId !== visitorId) {
+          logRejected(getPlayerName(db, visitorId), visitorId, objectId, "edit");
+          sendJson(res, 403, { error: "only the author can edit this observation" });
+          return;
+        }
+        const body = (await readJson(req)) as { text?: unknown };
+        const text = typeof body.text === "string" ? body.text.trim() : "";
+        if (!text || text.length > MAX_OBSERVATION_LENGTH) {
+          sendJson(res, 400, {
+            error: `text must be between 1 and ${MAX_OBSERVATION_LENGTH} characters`,
+          });
+          return;
+        }
+        const updated = updateObservation(db, obsId, text)!;
+        logObservationEdited(getPlayerName(db, visitorId), visitorId, objectId);
+        const payload = (viewerId: string) => ({ observation: toClientObservation(updated, viewerId) });
+        hub.broadcast("observation-edited", payload);
+        sendJson(res, 200, payload(visitorId));
         return;
       }
 
-      const updated = recordPrediction(db, body.prediction, visitorId);
-      if (!updated) {
-        sendJson(res, 409, { error: "no open delivery to predict against" });
+      if (req.method === "DELETE") {
+        if (existing.authorId !== visitorId) {
+          logRejected(getPlayerName(db, visitorId), visitorId, objectId, "delete");
+          sendJson(res, 403, { error: "only the author can delete this observation" });
+          return;
+        }
+        deleteObservation(db, obsId);
+        logObservationDeleted(getPlayerName(db, visitorId), visitorId, objectId);
+        hub.broadcast("observation-deleted", { objectId, id: obsId });
+        sendJson(res, 200, { objectId, id: obsId });
         return;
       }
-      logPredicted(getPlayerName(db, visitorId), visitorId);
-      if (updated.bowlerId) {
-        logRevealed(
-          getPlayerName(db, updated.bowlerId),
-          updated.bowlerId,
-          getPlayerName(db, visitorId),
-          visitorId,
-          updated.delivery as Call,
-          updated.prediction as Call,
-          updated.delivery === updated.prediction ? "hit" : "miss",
-        );
-      }
-      const state = buildState();
-      hub.broadcast("state", state);
-      sendJson(res, 200, state);
-      return;
     }
 
     send(res, 404, "text/plain", "not found");
@@ -250,5 +322,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(port, "0.0.0.0", () => {
-  console.log(`Final Over listening on 0.0.0.0:${port}, db at ${dbPath}`);
+  console.log(`COSMOS listening on 0.0.0.0:${port}, db at ${dbPath}`);
 });

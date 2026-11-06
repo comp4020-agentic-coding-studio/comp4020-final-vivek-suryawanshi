@@ -4,9 +4,9 @@ FROM node:24-alpine
 
 WORKDIR /app
 
-# Only marked ships at runtime; vitest/jsdom/typescript stay out of the image.
+# Only marked and three ship at runtime; vitest/jsdom/typescript stay out of the image.
 COPY package.json pnpm-lock.yaml ./
-RUN npm install --omit=dev marked@18.1.1
+RUN npm install --omit=dev marked@18.1.1 three@0.169.0
 
 COPY src/ ./src/
 COPY README.md ./README.md

@@ -1,5 +1,3 @@
-import type { Call } from "./db.ts";
-
 // First 8 chars of a cookie id — enough to tell two people apart in a log
 // line without printing the whole thing.
 export function shortId(id: string): string {
@@ -18,32 +16,27 @@ export function logJoined(name: string, id: string): void {
   line(`joined: ${name} (${shortId(id)})`);
 }
 
-// Never takes the delivery value — there's no parameter here to carry it,
-// even by mistake.
-export function logDelivered(name: string | null, id: string): void {
-  line(`delivered (value hidden): ${displayName(name)} (${shortId(id)})`);
+export function logOpened(objectId: string, name: string | null, id: string): void {
+  line(`opened ${objectId}: ${displayName(name)} (${shortId(id)})`);
 }
 
-export function logPredicted(name: string | null, id: string): void {
-  line(`predicted: ${displayName(name)} (${shortId(id)})`);
+export function logObservationAdded(name: string | null, id: string, objectId: string): void {
+  line(`added observation on ${objectId}: ${displayName(name)} (${shortId(id)})`);
 }
 
-export function logRejectedOwnDelivery(name: string | null, id: string): void {
-  line(`rejected: own delivery — ${displayName(name)} (${shortId(id)})`);
+export function logObservationEdited(name: string | null, id: string, objectId: string): void {
+  line(`edited observation on ${objectId}: ${displayName(name)} (${shortId(id)})`);
 }
 
-export function logRevealed(
-  bowlerName: string | null,
-  bowlerId: string,
-  predictorName: string | null,
-  predictorId: string,
-  delivery: Call,
-  prediction: Call,
-  result: "hit" | "miss",
+export function logObservationDeleted(name: string | null, id: string, objectId: string): void {
+  line(`deleted observation on ${objectId}: ${displayName(name)} (${shortId(id)})`);
+}
+
+export function logRejected(
+  name: string | null,
+  id: string,
+  objectId: string,
+  action: "edit" | "delete",
 ): void {
-  line(
-    `revealed: ${delivery} vs ${prediction}, ${result} — ` +
-      `${displayName(bowlerName)} (${shortId(bowlerId)}) bowled, ` +
-      `${displayName(predictorName)} (${shortId(predictorId)}) predicted`,
-  );
+  line(`rejected: ${action} on ${objectId} by non-author — ${displayName(name)} (${shortId(id)})`);
 }

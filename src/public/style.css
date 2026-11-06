@@ -1,22 +1,41 @@
-body {
-  font-family: system-ui, sans-serif;
-  max-width: 40rem;
-  margin: 2rem auto;
-  padding: 0 1rem;
-  color: #1a1a1a;
+:root {
+  color-scheme: dark;
 }
 
-h1 {
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #05070f;
+  color: #e8edf5;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+header {
+  padding: 1rem 1.25rem 0;
+}
+
+header h1 {
   margin-bottom: 0;
 }
 
-section {
-  margin-top: 2rem;
+header a {
+  color: #8fb8ff;
 }
 
-.choices {
-  display: flex;
-  gap: 0.75rem;
+#name-gate {
+  max-width: 28rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
 }
 
 #name-form {
@@ -28,67 +47,252 @@ section {
   flex: 1;
   padding: 0.75rem 1rem;
   font-size: 1.1rem;
-  border: 2px solid #1a1a1a;
+  border: 2px solid #3a4260;
   border-radius: 0.5rem;
+  background: #10152a;
+  color: inherit;
 }
 
-#name-form button {
-  padding: 0.75rem 1.5rem;
-  font-size: 1.1rem;
-  border: 2px solid #1a1a1a;
-  background: #1a1a1a;
+#name-form button,
+#observation-form button,
+.observation-actions button,
+#panel-close {
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  border: 2px solid #4a76ff;
+  background: #4a76ff;
   color: #fff;
   border-radius: 0.5rem;
   cursor: pointer;
 }
 
-.choices button {
+#app {
   flex: 1;
-  padding: 0.75rem 1rem;
-  font-size: 1.1rem;
-  border: 2px solid #1a1a1a;
-  background: #fff;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#scene-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 50vh;
+}
+
+#cosmos-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#low-graphics-label {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: rgba(5, 7, 15, 0.7);
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.4rem;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+#object-list-wrap {
+  padding: 0.75rem 1rem 1.25rem;
+  background: #0a0e1d;
+  border-top: 1px solid #1c2440;
+}
+
+#object-list-wrap h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+#object-list {
+  display: flex;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+#object-list button {
+  flex: 0 0 auto;
+  padding: 0.6rem 1rem;
   border-radius: 0.5rem;
+  border: 2px solid #2d365a;
+  background: #141a33;
+  color: inherit;
   cursor: pointer;
+  font-size: 0.95rem;
+  white-space: nowrap;
 }
 
-.choices button:hover {
-  background: #f0f0f0;
+#object-list button:hover,
+#object-list button:focus-visible {
+  border-color: #4a76ff;
+  outline: none;
 }
 
-.choices button.selected {
-  background: #1a1a1a;
-  color: #fff;
+dialog#object-panel {
+  border: none;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  max-width: 36rem;
+  width: min(90vw, 36rem);
+  max-height: 85vh;
+  overflow-y: auto;
+  background: #0d1226;
+  color: inherit;
 }
 
-#status {
-  font-size: 1.2rem;
-  font-weight: 600;
+dialog#object-panel::backdrop {
+  background: rgba(0, 0, 0, 0.6);
 }
 
-#status.hit {
-  color: #0a7a2f;
+#panel-close {
+  float: right;
+  padding: 0.25rem 0.6rem;
+  line-height: 1;
 }
 
-#status.miss {
-  color: #b00020;
+#panel-preview-canvas {
+  display: block;
+  width: 100%;
+  height: 12rem;
+  border-radius: 0.5rem;
+  background: #05070f;
 }
 
-#history {
+.lookback {
+  color: #9aa6c7;
+  font-style: italic;
+}
+
+#panel-facts {
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-#history li {
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #ddd;
+#panel-facts li {
+  margin-bottom: 0.5rem;
 }
 
-#history li.hit {
-  color: #0a7a2f;
+.fact-label {
+  display: inline-block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  margin-right: 0.5rem;
+  background: #243055;
 }
 
-#history li.miss {
-  color: #b00020;
+.fact-observed { background: #15543a; }
+.fact-reconstructed { background: #5a4a15; }
+.fact-simulated { background: #1f3a5a; }
+.fact-proposed-not-confirmed { background: #5a1f2c; }
+
+#panel-sources {
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+}
+
+#panel-sources a {
+  color: #8fb8ff;
+}
+
+#observation-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+#observation-input {
+  resize: vertical;
+  min-height: 3.5rem;
+  padding: 0.6rem;
+  border-radius: 0.5rem;
+  border: 2px solid #2d365a;
+  background: #141a33;
+  color: inherit;
+  font: inherit;
+}
+
+.observation-form-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #9aa6c7;
+}
+
+#observation-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.observation {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid #1c2440;
+}
+
+.observation-byline {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #8fa0c7;
+}
+
+.observation-text {
+  margin: 0.2rem 0 0.4rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.observation-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.observation-actions button {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.observation-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.2rem 0 0.4rem;
+}
+
+.observation-edit-form textarea {
+  resize: vertical;
+  min-height: 3rem;
+  padding: 0.5rem;
+  border-radius: 0.4rem;
+  border: 2px solid #2d365a;
+  background: #141a33;
+  color: inherit;
+  font: inherit;
+}
+
+@media (max-width: 480px) {
+  dialog#object-panel {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    margin: 0;
+  }
+
+  #object-list button {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.8rem;
+  }
 }
