@@ -89,19 +89,23 @@ function openPanel(objectId, triggerEl) {
   renderFacts(content.facts ?? []);
   renderSources(content.sources);
 
+  atlas.open(objectId);
+
+  // The dialog must actually be open (and laid out) before starting the
+  // preview — its canvas is display:none, with zero size, until showModal()
+  // runs, and the preview sizes its renderer/camera from that layout.
+  if (typeof panelEl.showModal === "function") {
+    panelEl.showModal();
+  } else {
+    panelEl.setAttribute("open", "");
+  }
+
   const entry = scene.objects.get(objectId);
   if (entry) {
     const clone = entry.mesh.clone(true);
     preview.start(clone);
   }
 
-  atlas.open(objectId);
-
-  if (typeof panelEl.showModal === "function") {
-    panelEl.showModal();
-  } else {
-    panelEl.setAttribute("open", "");
-  }
   panelCloseBtn.focus();
 }
 
