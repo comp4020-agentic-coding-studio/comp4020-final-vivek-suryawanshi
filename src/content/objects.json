@@ -1,68 +1,77 @@
 {
   "earth": {
     "name": "Earth",
-    "text": "PLACEHOLDER: our home planet. Replace this with real copy.",
-    "lookbackTime": "~8 minutes (light from the Sun)",
+    "text": "Earth is the third planet from the Sun and the only place we know of with liquid water on its surface and life. It's a rocky planet about 12,756 km across, wrapped in a thin atmosphere of nitrogen and oxygen that shields the surface from radiation and keeps the climate livable. A molten core spinning beneath the crust generates a magnetic field that deflects charged particles from the Sun, producing the auroras at the poles.",
+    "lookbackTime": "~8.3 minutes (the time sunlight takes to reach Earth)",
     "sources": ["https://science.nasa.gov/earth/facts/"],
     "facts": [
-      { "label": "observed", "text": "PLACEHOLDER fact about Earth." }
+      { "label": "observed", "text": "Earth orbits the Sun once every 365.25 days and spins on its axis once every 23.9 hours; that quarter-day is why calendars need a leap year." },
+      { "label": "observed", "text": "Water covers about 71% of Earth's surface, with oceans averaging roughly 3.6 km deep and holding 97% of the planet's water." }
     ]
   },
   "saturn": {
     "name": "Saturn",
-    "text": "PLACEHOLDER: the ringed planet. Replace this with real copy.",
-    "lookbackTime": "~80 minutes",
+    "text": "Saturn is the second-largest planet in the Solar System, a gas giant made almost entirely of hydrogen and helium. It's famous for its rings — a vast, flat system of ice and rock fragments ranging from dust grains to house-sized chunks, held in place by Saturn's gravity and the gentle tugging of its moons. Despite spanning hundreds of thousands of kilometres, the main rings are only about 10 metres thick.",
+    "lookbackTime": "~80 minutes (light from the Sun, reflected off Saturn)",
     "sources": ["https://science.nasa.gov/saturn/facts/"],
     "facts": [
-      { "label": "observed", "text": "PLACEHOLDER fact about Saturn's rings." }
+      { "label": "observed", "text": "Saturn's diameter is about 120,500 km — roughly 9 times wider than Earth — but it's so low-density it would float in a bathtub big enough to hold it." },
+      { "label": "observed", "text": "Saturn's cloud bands are driven by equatorial winds up to about 1,600 feet per second, with a persistent six-sided jet-stream pattern circling its north pole." }
     ]
   },
   "betelgeuse": {
     "name": "Betelgeuse",
-    "text": "PLACEHOLDER: a red supergiant star nearing the end of its life. Replace this with real copy.",
-    "lookbackTime": "~548 years",
-    "sources": ["https://science.nasa.gov/mission/hubble/"],
+    "text": "Betelgeuse is a red supergiant star — one of the largest and brightest stars visible to the naked eye, marking the shoulder of the constellation Orion. It's in the final stages of its life, fusing heavier elements in its core on the way to an eventual supernova. Its outer layers are so vast that, placed where our Sun is, it would swallow the orbits of Mercury, Venus, Mars, and possibly Jupiter.",
+    "lookbackTime": "~548 years (current best estimate; see distance note below)",
+    "sources": ["https://iopscience.iop.org/article/10.3847/1538-4357/abb8db"],
     "facts": [
-      { "label": "observed", "text": "PLACEHOLDER fact about Betelgeuse's brightness." },
-      { "label": "proposed, not confirmed", "text": "PLACEHOLDER: exact distance and supernova timing are debated." }
+      { "label": "reconstructed", "text": "Combining stellar evolution models, pulsation (asteroseismic) analysis, and hydrodynamic simulations, Joyce et al. (2020) estimate Betelgeuse's distance at 168 parsecs (~548 light-years), with an uncertainty range of roughly 153–195 parsecs (about 499–636 light-years) — distances to Betelgeuse have varied across studies and are still debated." },
+      { "label": "reconstructed", "text": "The same study estimates Betelgeuse's radius at about 764 times the Sun's, and its mass at 16.5–19 times the Sun's — notably lower than some earlier estimates." },
+      { "label": "proposed, not confirmed", "text": "Betelgeuse is expected to explode as a supernova sometime in the next ~100,000 years — a near-certainty on astronomical timescales, but not something observed yet, and not predictable to the year, decade, or even century." }
     ]
   },
   "gaia-bh1": {
     "name": "Gaia BH1",
-    "text": "PLACEHOLDER: a Sun-like star orbiting a dormant stellar-mass black hole. Only the star is shown for now; the black hole itself stays invisible. Replace this with real copy.",
-    "lookbackTime": "~1,560 years",
+    "text": "Gaia BH1 is a Sun-like star orbiting a dormant stellar-mass black hole — the nearest known black hole to Earth. The black hole itself gives off no detectable light, so only its companion star is shown here; the black hole's existence is inferred entirely from how it tugs on that star's motion. Only the visible, Sun-like companion star is rendered in this scene — the black hole stays invisible, as it would in reality.",
+    "lookbackTime": "~1,560 years (480 parsecs)",
     "sources": ["https://arxiv.org/abs/2209.06833"],
     "facts": [
-      { "label": "observed", "text": "PLACEHOLDER fact about the visible companion star." },
-      { "label": "reconstructed", "text": "PLACEHOLDER: the black hole's mass is inferred from the star's orbit." }
+      { "label": "observed", "text": "The visible star is an ordinary, slowly-rotating G-type dwarf similar to the Sun, with about 93% of the Sun's mass and near-solar composition." },
+      { "label": "reconstructed", "text": "El-Badry et al. (2022) measured the star's wobble using Gaia's astrometry and ground-based radial-velocity spectroscopy, inferring a dark companion of about 9.6 solar masses on a 185.6-day orbit. Ruling out a second visible star — which would have been detectable — leaves a black hole as the only plausible explanation for an unseen object this massive." }
     ]
   },
   "andromeda": {
     "name": "Andromeda Galaxy",
-    "text": "PLACEHOLDER: our nearest large galactic neighbour. Replace this with real copy.",
+    "text": "The Andromeda Galaxy (Messier 31) is the nearest large spiral galaxy to our own, and the most distant object most people can see with the naked eye. It's a vast, flattened disc of stars, gas, and dust, structurally similar to the Milky Way but roughly twice as wide. Over billions of years, gravity is slowly pulling Andromeda and the Milky Way together — but whether, or how, they actually collide is less certain than once thought.",
     "lookbackTime": "~2.5 million years",
-    "sources": ["https://science.nasa.gov/mission/hubble/"],
+    "sources": [
+      "https://science.nasa.gov/missions/hubble/nasas-hubble-shows-milky-way-is-destined-for-head-on-collision/",
+      "https://esahubble.org/news/heic2508/"
+    ],
     "facts": [
-      { "label": "observed", "text": "PLACEHOLDER fact about Andromeda's shape." },
-      { "label": "simulated", "text": "PLACEHOLDER: its future collision with the Milky Way is modelled, not observed." }
+      { "label": "observed", "text": "Andromeda is about 2.5 million light-years from Earth and spans roughly 260,000 light-years across — about twice the diameter of the Milky Way." },
+      { "label": "simulated", "text": "A 2012 study, using about five to seven years of Hubble data, projected a head-on collision with the Milky Way beginning in roughly 4–5 billion years, eventually merging the two into one elliptical galaxy. At the time this looked almost inevitable." },
+      { "label": "simulated", "text": "Sawala et al. (2025, Nature Astronomy) revisited the prediction with over a decade of additional Hubble data, Gaia measurements, and 100,000 simulations that also modelled the gravitational pull of each galaxy's satellite galaxies (including the Milky Way's Large Magellanic Cloud and Andromeda's M33). Adding those extra variables — each with its own uncertainty — made the outcome far less certain than the 2012 result suggested: they found only about a 50% chance of a collision or merger within the next 10 billion years, and only about a 2% chance of a direct, head-on collision within 4–5 billion years. This is still a simulated projection, not an observed event — it was revised because better data and a more complete simulation revealed more uncertainty, not less." }
     ]
   },
   "quipu": {
     "name": "Quipu",
-    "text": "PLACEHOLDER: one of the largest known structures in the universe, a long chain of galaxy clusters. Replace this with real copy.",
-    "lookbackTime": "~425 million years",
-    "sources": ["https://arxiv.org/abs/2409.02807"],
+    "text": "Quipu is the largest cosmic structure yet identified in the nearby universe: a sprawling superstructure of galaxy clusters stretching across hundreds of millions of light-years. It's named after the knotted cords used by the Inca to record information, because of its long, branching, thread-like shape. Structures like Quipu trace the 'cosmic web' — the large-scale skeleton of matter that galaxies and clusters are strung along.",
+    "lookbackTime": "~425 million years (130–250 Mpc)",
+    "sources": ["https://arxiv.org/abs/2501.19236"],
     "facts": [
-      { "label": "reconstructed", "text": "PLACEHOLDER: its shape is reconstructed from galaxy survey data." }
+      { "label": "reconstructed", "text": "Böhringer et al. (2025) mapped Quipu using X-ray-detected galaxy clusters as tracers of the matter distribution, finding it extends over 400 megaparsecs (roughly 1.3 billion light-years) and has an estimated mass around 2×10^17 times the Sun's mass." },
+      { "label": "reconstructed", "text": "Quipu and four other superstructures found in the same survey together contain about 45% of the galaxy clusters, 30% of the galaxies, and 25% of the matter in their surveyed volume — a disproportionate share for structures occupying only about 13% of the space." }
     ]
   },
   "great-wall": {
     "name": "Hercules–Corona Borealis Great Wall",
-    "text": "PLACEHOLDER: a vast, loosely-defined concentration of galaxies — one of the largest structures ever proposed. Replace this with real copy.",
-    "lookbackTime": "~10 billion years",
-    "sources": ["https://arxiv.org/abs/1311.1104"],
+    "text": "The Hercules–Corona Borealis Great Wall is a proposed concentration of matter so large that, if real, it would challenge standard assumptions about how uniform the universe is on the largest scales. Unlike galaxy superstructures mapped directly from visible galaxies, this one was inferred from an unusual clustering of gamma-ray bursts — brief, extremely energetic explosions — appearing to bunch up in one region of the sky at a particular cosmic distance.",
+    "lookbackTime": "~10 billion years (redshift z ≈ 1.6–2.1)",
+    "sources": ["https://arxiv.org/abs/1510.01933"],
     "facts": [
-      { "label": "proposed, not confirmed", "text": "PLACEHOLDER: whether this is a single coherent structure is debated." }
+      { "label": "observed", "text": "Horváth, Bagoly, Hakkila & Tóth (2015) found that gamma-ray bursts at redshifts 1.6–2.1 cluster together in the sky more than random chance would predict, using an expanded sample of 44 bursts in that redshift range." },
+      { "label": "proposed, not confirmed", "text": "The authors estimate the implied structure could span 2,000–3,000 megaparsecs (roughly 6.5–10 billion light-years) — large enough that, if it is a single bound structure rather than an alignment of smaller ones, it would exceed the maximum size current cosmological models expect any structure to grow to. Whether it is one real structure, several smaller ones that happen to align, or a statistical fluke remains an open, debated question." }
     ]
   }
 }
