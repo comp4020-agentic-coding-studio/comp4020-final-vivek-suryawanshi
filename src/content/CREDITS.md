@@ -1,8 +1,8 @@
 # Third-party assets
 
-Textures used to render Saturn and Earth in the 3D scene. All are licensed
-for inclusion in a public repository; attribution is given here per each
-licence's terms.
+Textures used to render Saturn, Earth, and the sky background in the 3D
+scene. All are licensed for inclusion in a public repository; attribution
+is given here per each licence's terms.
 
 ## Solar System Scope textures
 
@@ -24,12 +24,13 @@ resized and re-compressed — see "Modifications" below):
 | `saturn_ring_alpha.png` | `2k_saturn_ring_alpha.png` | Saturn's ring colour/transparency profile |
 | `earth_daymap.jpg` | `2k_earth_daymap.jpg` | Earth's surface |
 | `earth_clouds.jpg` | `2k_earth_clouds.jpg` | Earth's cloud layer (alpha-blended shell) |
+| `milkyway.jpg` | `2k_stars_milky_way.jpg` | Distant sky background (camera-centred skybox) |
 
 ### Modifications
 
 Each file was downsampled and re-compressed from the original 2k source to
 keep the total texture payload small for integrated-graphics and mobile
-devices (combined total ≈ 210 KB for all four files):
+devices (combined total ≈ 250 KB for all five files):
 
 - `saturn_bands.jpg`: resized 2048×1024 → 1024×512, re-encoded as JPEG
   quality 82.
@@ -41,6 +42,11 @@ devices (combined total ≈ 210 KB for all four files):
 - `earth_clouds.jpg`: resized 2048×1024 → 1024×512, re-encoded as JPEG
   quality 70 (a mostly-flat alpha/luminance map, so more compressible
   without visible loss).
+- `milkyway.jpg`: resized 2048×1024 → 1600×800, re-encoded as JPEG
+  quality 78 (a smooth photographic background with no fine detail to
+  preserve, so a lower resolution and quality setting than the planetary
+  textures is visually indistinguishable once rendered as a distant
+  backdrop).
 
 CC BY 4.0 permits adaptation (resizing, re-encoding) provided the licence
 and attribution are retained, which this file does.

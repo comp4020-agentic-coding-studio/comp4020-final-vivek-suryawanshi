@@ -6,8 +6,17 @@ import {
   loadSaturnRingTexture,
   loadEarthDaymapTexture,
   loadEarthCloudsTexture,
+  loadMilkyWayTexture,
+  getRadialDotTexture,
   applyRadialRingUVs,
 } from "./textures.js";
+import { createAtmosphereMaterial } from "./atmosphere.js";
+
+// Objects still inside the Milky Way (even the two nearby stars, at 548 and
+// 1,560 light-years, are far closer than the galaxy's ~100,000-light-year
+// diameter) vs. the three genuinely extragalactic destinations — used to
+// fade the sky background in and out as the brief asks.
+const IN_GALAXY = new Set(["earth", "saturn", "betelgeuse", "gaia-bh1"]);
 
 // Cheap-to-render looks for each object: textured spheres for the two
 // solar-system bodies, emissive spheres for the visible stars, THREE.Points
@@ -16,8 +25,9 @@ import {
 // and additive blending only, so this runs fine on integrated graphics. The
 // handful of textures used (Saturn's bands/rings, Earth's surface/clouds)
 // are small, pre-compressed JPEGs/PNGs — see textures.js and
-// src/content/CREDITS.md.
-function buildObjectMesh(id, lowGraphics) {
+// src/content/CREDITS.md. sunDir is only used by Earth's atmosphere shader
+// (so its rim brightens on the lit side); every other object is unaffected.
+function buildObjectMesh(id, lowGraphics, sunDir) {
   switch (id) {
     case "earth": {
       const segments = lowGraphics ? [16, 12] : [48, 32];
@@ -43,6 +53,17 @@ function buildObjectMesh(id, lowGraphics) {
         );
         clouds.userData.isCloudLayer = true;
         earth.add(clouds);
+
+        // A Fresnel-glow shell, slightly larger again than the clouds, for
+        // a rim-only atmosphere highlight rather than a uniformly tinted
+        // sphere. Skipped in low-graphics along with the cloud layer, same
+        // pattern, same reasoning: both are decorative, neither is needed
+        // to read Earth as Earth.
+        const atmosphere = new THREE.Mesh(
+          new THREE.SphereGeometry(1.08, 32, 24),
+          createAtmosphereMaterial(sunDir),
+        );
+        earth.add(atmosphere);
       }
       return earth;
     }
@@ -183,24 +204,101 @@ function buildChainCloud({ count, length, color }) {
   return new THREE.Points(geometry, material);
 }
 
-function buildStarfield(lowGraphics) {
-  const count = lowGraphics ? 1500 : 8000;
+// A handful of plausible star colours by rough stellar type (blue-white,
+// white, pale yellow, warm orange) — picked at random per point via a
+// vertex-color attribute, which PointsMaterial supports natively with no
+// custom shader.
+const STAR_PALETTE = [
+  [0.75, 0.85, 1.0], // blue-white
+  [1.0, 1.0, 1.0], // white
+  [1.0, 0.95, 0.8], // pale yellow
+  [1.0, 0.8, 0.6], // warm orange
+];
+
+function randomSpherePoint(radius) {
+  const u = Math.random();
+  const v = Math.random();
+  const theta = 2 * Math.PI * u;
+  const phi = Math.acos(2 * v - 1);
+  const r = radius * (0.8 + Math.random() * 0.2);
+  return [r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi)];
+}
+
+function buildStarLayer(count, size, radius, sprite) {
   const positions = new Float32Array(count * 3);
-  const radius = 300;
+  const colors = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
-    const u = Math.random();
-    const v = Math.random();
-    const theta = 2 * Math.PI * u;
-    const phi = Math.acos(2 * v - 1);
-    const r = radius * (0.8 + Math.random() * 0.2);
-    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-    positions[i * 3 + 2] = r * Math.cos(phi);
+    positions.set(randomSpherePoint(radius), i * 3);
+    const [r, g, b] = STAR_PALETTE[Math.floor(Math.random() * STAR_PALETTE.length)];
+    colors.set([r, g, b], i * 3);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  const material = new THREE.PointsMaterial({ color: 0xffffff, size: 0.6, sizeAttenuation: false });
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  const material = new THREE.PointsMaterial({
+    size,
+    map: sprite,
+    vertexColors: true,
+    transparent: true,
+    depthWrite: false,
+    sizeAttenuation: false,
+  });
   return new THREE.Points(geometry, material);
+}
+
+// Three size/brightness tiers instead of one uniform layer of flat white
+// dots — PointsMaterial only takes one `size` per material, so distinct
+// point sizes mean distinct layers, not a single draw call. Low-graphics
+// drops the smallest-count, biggest "hero" layer (purely decorative) and
+// keeps the two workhorse layers at reduced counts, same ratio as before.
+function buildStarfield(lowGraphics) {
+  const sprite = getRadialDotTexture();
+  const group = new THREE.Group();
+  group.add(buildStarLayer(lowGraphics ? 1400 : 7500, 1.1, 300, sprite));
+  group.add(buildStarLayer(lowGraphics ? 100 : 450, 2, 280, sprite));
+  if (!lowGraphics) group.add(buildStarLayer(15, 3.2, 260, sprite));
+  return group;
+}
+
+// The Sun: a camera-facing billboard at the origin, the same point used as
+// the light source, so the visible glow and the lighting direction are
+// consistent. Never added to the objects Map, so raycastAt() (which only
+// intersects objects.values()) automatically skips it — it isn't
+// selectable, isn't in the object list, and isn't scientific content.
+function buildSunSprite() {
+  const material = new THREE.SpriteMaterial({
+    map: getRadialDotTexture(),
+    color: 0xfff2c8,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    transparent: true,
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(6, 6, 1);
+  sprite.position.set(0, 0, 0);
+  return sprite;
+}
+
+// The sky background (stars + Milky Way) as a true skybox: re-centred on
+// the camera every frame so it never appears to get closer no matter how
+// far the camera travels within the scene (radius only needs to clear
+// camera.near and stay inside camera.far — it doesn't need to track
+// controls.maxDistance the way an origin-fixed sphere would have). The
+// Milky Way band fades out for the three extragalactic destinations
+// (Andromeda, Quipu, the Great Wall) via its own independent, time-based
+// opacity glide — not tied to the camera flight's tween — so switching
+// destinations again mid-fade just redirects the glide from wherever
+// it currently is, with nothing to desynchronise.
+function buildMilkyWay(lowGraphics) {
+  const geometry = new THREE.SphereGeometry(150, lowGraphics ? 24 : 32, lowGraphics ? 12 : 16);
+  const material = new THREE.MeshBasicMaterial({
+    map: loadMilkyWayTexture(),
+    side: THREE.BackSide,
+    depthWrite: false,
+    transparent: true,
+    opacity: 0.85,
+  });
+  return new THREE.Mesh(geometry, material);
 }
 
 export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null } = {}) {
@@ -212,11 +310,27 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
   renderer.setPixelRatio(lowGraphics ? 1 : Math.min(window.devicePixelRatio, 2));
   renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-  const sun = new THREE.PointLight(0xffffff, 1.5, 0, 0);
-  sun.position.set(0, 0, 0);
-  scene.add(sun);
+  // The Sun is one PointLight at the origin with decay=0 (brightness doesn't
+  // fall off with distance): every object's lit hemisphere already faces
+  // the origin correctly, for free, because a point light's direction
+  // varies per-fragment based on position — unlike a DirectionalLight,
+  // which has one fixed direction for the whole scene and would light
+  // Earth and Saturn (which sit in different directions from the origin)
+  // from the same angle, weakening both their terminators. decay=0 because
+  // real inverse-square falloff would make the compressed log-scaled
+  // layout (Saturn only tens of units from Earth) look misleading — only
+  // the per-object direction should come from the Sun's position, not a
+  // simulated distance falloff. Ambient stays low so the night side reads
+  // as night, not as evenly lit. No shadow maps — nothing here needs one
+  // object's shadow falling on another.
+  scene.add(new THREE.AmbientLight(0xffffff, 0.08));
+  const sunLight = new THREE.PointLight(0xffffff, 2.2, 0, 0);
+  sunLight.position.set(0, 0, 0);
+  scene.add(sunLight);
+  scene.add(buildSunSprite());
 
+  const milkyWay = buildMilkyWay(lowGraphics);
+  scene.add(milkyWay);
   scene.add(buildStarfield(lowGraphics));
 
   const controls = new OrbitControls(camera, canvas);
@@ -227,11 +341,48 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
   const layout = computeLayout();
   const objects = new Map();
   for (const entry of layout) {
-    const mesh = buildObjectMesh(entry.id, lowGraphics);
+    // Earth's atmosphere shader brightens on whichever side faces the Sun
+    // (the origin) — the same physical relationship the PointLight above
+    // already uses, just expressed as a per-mesh direction for the shader.
+    const sunDir = new THREE.Vector3(
+      entry.position.x,
+      entry.position.y,
+      entry.position.z,
+    )
+      .negate()
+      .normalize();
+    const mesh = buildObjectMesh(entry.id, lowGraphics, sunDir);
     mesh.position.set(entry.position.x, entry.position.y, entry.position.z);
     mesh.userData.objectId = entry.id;
     scene.add(mesh);
     objects.set(entry.id, { ...entry, mesh });
+  }
+
+  // The Milky Way fades out for the three extragalactic destinations and
+  // back in for anything still inside our own galaxy. This is a simple
+  // time-based glide, entirely independent of the camera-flight tween
+  // (which may be short, interrupted, or skipped under reduced motion) —
+  // so re-selecting a different object mid-fade just redirects the glide
+  // from whatever opacity it's currently at, with no desync possible.
+  let milkyWayFadeFrom = milkyWay.material.opacity;
+  let milkyWayFadeTo = milkyWay.material.opacity;
+  let milkyWayFadeStart = 0;
+  const MILKY_WAY_FADE_DURATION = 1200;
+  const MILKY_WAY_OPACITY_IN_GALAXY = 0.85;
+  const MILKY_WAY_OPACITY_EXTRAGALACTIC = 0.15;
+
+  function setMilkyWayTarget(objectId) {
+    const target = IN_GALAXY.has(objectId) ? MILKY_WAY_OPACITY_IN_GALAXY : MILKY_WAY_OPACITY_EXTRAGALACTIC;
+    if (target === milkyWayFadeTo) return;
+    milkyWayFadeFrom = milkyWay.material.opacity;
+    milkyWayFadeTo = target;
+    milkyWayFadeStart = performance.now();
+  }
+
+  function updateMilkyWayFade(now) {
+    if (milkyWay.material.opacity === milkyWayFadeTo) return;
+    const t = Math.min(1, (now - milkyWayFadeStart) / MILKY_WAY_FADE_DURATION);
+    milkyWay.material.opacity = THREE.MathUtils.lerp(milkyWayFadeFrom, milkyWayFadeTo, t);
   }
 
   let running = true;
@@ -265,6 +416,7 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
       duration: 1200,
       onArrive,
     };
+    setMilkyWayTarget(objectId);
   }
 
   function updateFlight(now) {
@@ -286,6 +438,11 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
     lastFrameTime = now;
     if (running) {
       updateFlight(now);
+      updateMilkyWayFade(now);
+      // True skybox behaviour: re-centre on the camera every frame so the
+      // background never appears to get closer no matter how far the
+      // camera travels within the scene.
+      milkyWay.position.copy(camera.position);
       if (!flight) onFrame?.(deltaSeconds);
       controls.update();
       for (const { mesh } of objects.values()) {

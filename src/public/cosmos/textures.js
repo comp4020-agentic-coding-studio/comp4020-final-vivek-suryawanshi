@@ -36,6 +36,32 @@ export function loadEarthCloudsTexture() {
   return loadTexture("/cosmos/assets/earth_clouds.jpg");
 }
 
+export function loadMilkyWayTexture() {
+  return loadTexture("/cosmos/assets/milkyway.jpg", { colorSpace: THREE.SRGBColorSpace });
+}
+
+// A soft round dot, drawn once to an offscreen canvas rather than fetched
+// over the network — used as the point sprite for both the starfield and
+// the Sun glow, so neither needs its own texture asset. Cached so every
+// caller shares one GPU upload.
+let dotTexture = null;
+export function getRadialDotTexture() {
+  if (dotTexture) return dotTexture;
+  const size = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, "rgba(255,255,255,1)");
+  gradient.addColorStop(0.4, "rgba(255,255,255,0.8)");
+  gradient.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  dotTexture = new THREE.CanvasTexture(canvas);
+  return dotTexture;
+}
+
 // RingGeometry's built-in UVs are a flat XY projection (u,v both derived from
 // x/y position), which is right for a texture drawn to look like a ring but
 // wrong for solarsystemscope's ring texture: that image is a 1D radial
