@@ -7,10 +7,11 @@ import { OBJECTS } from "./distances.js";
 
 const canvas = document.getElementById("cosmos-canvas");
 const nameGateEl = document.getElementById("name-gate");
-const appEl = document.getElementById("app");
 const nameFormEl = document.getElementById("name-form");
 const nameInputEl = document.getElementById("name-input");
+const objectListWrapEl = document.getElementById("object-list-wrap");
 const objectListEl = document.getElementById("object-list");
+const lowGraphicsLabelEl = document.getElementById("low-graphics-label");
 const lowGraphicsToggle = document.getElementById("low-graphics-toggle");
 
 const panelEl = document.getElementById("object-panel");
@@ -22,8 +23,17 @@ const panelLookback = document.getElementById("panel-lookback");
 const panelFacts = document.getElementById("panel-facts");
 const panelSources = document.getElementById("panel-sources");
 
+const tabs = [
+  { btn: document.getElementById("tab-overview"), panel: document.getElementById("tabpanel-overview") },
+  { btn: document.getElementById("tab-facts"), panel: document.getElementById("tabpanel-facts") },
+  { btn: document.getElementById("tab-atlas"), panel: document.getElementById("tabpanel-atlas") },
+];
+
+const desktopQuery = window.matchMedia("(min-width: 769px)");
+
 let objectsContent = {};
 let lastTriggerEl = null;
+let selectedObjectId = null;
 
 async function loadObjectsContent() {
   const res = await fetch("/api/objects");
@@ -37,10 +47,30 @@ function buildObjectList() {
       btn.type = "button";
       btn.textContent = obj.name;
       btn.dataset.objectId = obj.id;
+      btn.setAttribute("aria-current", "false");
       btn.addEventListener("click", () => selectObject(obj.id, btn));
       return btn;
     }),
   );
+}
+
+function markSelectedButton(objectId) {
+  for (const btn of objectListEl.children) {
+    btn.setAttribute("aria-current", String(btn.dataset.objectId === objectId));
+  }
+}
+
+function selectTab(tabId) {
+  for (const { btn, panel } of tabs) {
+    const active = btn.id === tabId;
+    btn.setAttribute("aria-selected", String(active));
+    btn.tabIndex = active ? 0 : -1;
+    panel.hidden = !active;
+  }
+}
+
+for (const { btn } of tabs) {
+  btn.addEventListener("click", () => selectTab(btn.id));
 }
 
 function renderFacts(facts) {
@@ -78,54 +108,98 @@ let scene;
 let preview;
 let atlas;
 
+// Desktop keeps the panel non-modal (.show()) so the scene behind it stays
+// orbit/zoom-able while reading; mobile keeps it a true modal bottom sheet
+// (.showModal()) since there's no room to use both at once there. Decided
+// at open time, not continuously, so resizing across the breakpoint while
+// the panel is already open just keeps whatever modality it opened with.
+function isDesktop() {
+  return desktopQuery.matches;
+}
+
+function updateViewportInset() {
+  if (!panelEl.open) {
+    scene?.setViewportInset({ side: "none", sizePx: 0 });
+    return;
+  }
+  if (isDesktop()) {
+    scene?.setViewportInset({ side: "right", sizePx: panelEl.getBoundingClientRect().width });
+  } else {
+    scene?.setViewportInset({ side: "bottom", sizePx: panelEl.getBoundingClientRect().height });
+  }
+}
+
 function openPanel(objectId, triggerEl) {
   const content = objectsContent[objectId];
   if (!content) return;
   lastTriggerEl = triggerEl ?? null;
+  selectedObjectId = objectId;
+  markSelectedButton(objectId);
 
   panelName.textContent = content.name;
   panelText.textContent = content.text;
   panelLookback.textContent = content.lookbackTime;
   renderFacts(content.facts ?? []);
   renderSources(content.sources);
+  selectTab("tab-overview");
 
   atlas.open(objectId);
 
-  // The dialog must actually be open (and laid out) before starting the
-  // preview — its canvas is display:none, with zero size, until showModal()
-  // runs, and the preview sizes its renderer/camera from that layout.
-  if (typeof panelEl.showModal === "function") {
-    panelEl.showModal();
-  } else {
-    panelEl.setAttribute("open", "");
+  // Re-opening while already open (clicking a different object on desktop,
+  // where the list stays usable) would throw InvalidStateError on
+  // show()/showModal() — just refresh the content above and leave the
+  // dialog's open state alone.
+  if (!panelEl.open) {
+    if (isDesktop()) {
+      panelEl.show();
+    } else {
+      panelEl.showModal();
+      objectListWrapEl.hidden = true;
+    }
+    panelCloseBtn.focus();
   }
+
+  updateViewportInset();
+  scene?.reframeCurrent(objectId);
 
   const entry = scene.objects.get(objectId);
   if (entry) {
     const clone = entry.mesh.clone(true);
     preview.start(clone);
   }
-
-  panelCloseBtn.focus();
 }
 
 function closePanel() {
-  if (typeof panelEl.close === "function" && panelEl.open) {
-    panelEl.close();
-  } else {
-    panelEl.removeAttribute("open");
-  }
+  if (panelEl.open) panelEl.close();
 }
 
-// Fires for every way the dialog closes — the close button, or the browser's
-// own Escape handling — so stopping the preview and restoring focus to
-// whichever object triggered it happens exactly once, from one place.
+// Fires for every way the dialog closes — the close button, the browser's
+// own Escape handling on mobile, or the manual Escape listener below on
+// desktop — so cleanup happens exactly once, from one place.
 panelEl.addEventListener("close", () => {
   preview.stop();
+  selectedObjectId = null;
+  markSelectedButton(null);
+  objectListWrapEl.hidden = false;
+  updateViewportInset();
   lastTriggerEl?.focus();
 });
 
+// Non-modal dialogs (the desktop case) don't get native Escape-to-close —
+// that's a showModal()-only behavior — so it's hand-rolled here, active
+// only while the panel is actually open.
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && panelEl.open && isDesktop()) closePanel();
+});
+
 panelCloseBtn.addEventListener("click", closePanel);
+
+window.addEventListener("resize", () => {
+  if (panelEl.open) {
+    updateViewportInset();
+    if (selectedObjectId) scene?.reframeCurrent(selectedObjectId);
+  }
+});
 
 function selectObject(objectId, triggerEl) {
   scene.flyTo(objectId, { onArrive: () => openPanel(objectId, triggerEl) });
@@ -133,11 +207,8 @@ function selectObject(objectId, triggerEl) {
 
 function showApp() {
   nameGateEl.hidden = true;
-  appEl.hidden = false;
-  // The canvas has zero size while #app is hidden (the scene is created
-  // before the name gate is necessarily passed), so the renderer/camera need
-  // a resize once it actually has layout.
-  scene?.resize();
+  objectListWrapEl.hidden = false;
+  lowGraphicsLabelEl.hidden = false;
 }
 
 nameFormEl.addEventListener("submit", async (event) => {

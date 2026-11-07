@@ -477,14 +477,10 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
     running = document.visibilityState === "visible";
   });
 
-  // True until the first flyTo() — the canvas is created (and this scene
-  // built) while the name-gate overlay still has the canvas hidden/zero
-  // size, so the initial Earth-composed camera position computed at
-  // startup used a degenerate aspect ratio. resize() re-runs that
-  // composition for as long as this stays true, so the very first real
-  // layout pass (once the name gate closes and the canvas has real
-  // dimensions) produces the correctly-framed opening shot instead of
-  // the bogus one computed against a zero-size canvas.
+  // True until the first flyTo() — keeps the Earth-composed opening shot
+  // responsive to window resizes (e.g. rotating a phone) for as long as no
+  // destination has been chosen yet, instead of leaving the first framing
+  // permanently fixed to whatever size the window happened to be at load.
   let hasSelectedDestination = false;
 
   function resize() {
