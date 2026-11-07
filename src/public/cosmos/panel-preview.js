@@ -38,8 +38,22 @@ export function createPanelPreview(canvas) {
 
     mesh.position.set(0, 0, 0);
     mesh.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(mesh);
-    const sphere = box.getBoundingSphere(new THREE.Sphere());
+    // Box3.getBoundingSphere() circumscribes the AABB, not the geometry
+    // itself (~1.73x too large for a sphere), which under-filled this
+    // preview the same way it under-sized the main scene's camera framing.
+    // Fitting a sphere to the actual vertex positions instead gives the
+    // true extent.
+    const worldPoints = [];
+    const vertex = new THREE.Vector3();
+    mesh.traverse((node) => {
+      if (!node.geometry) return;
+      const position = node.geometry.attributes.position;
+      for (let i = 0; i < position.count; i++) {
+        vertex.fromBufferAttribute(position, i).applyMatrix4(node.matrixWorld);
+        worldPoints.push(vertex.clone());
+      }
+    });
+    const sphere = new THREE.Sphere().setFromPoints(worldPoints);
     mesh.position.sub(sphere.center);
 
     const radius = Math.max(sphere.radius, 0.01);

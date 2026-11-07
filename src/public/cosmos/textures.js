@@ -1,11 +1,12 @@
 import * as THREE from "three";
 
-// A handful of small (<= ~110 KB each) CC-BY-licensed texture images make
-// Saturn and Earth read as real planets instead of flat-shaded spheres —
-// see src/content/CREDITS.md for the exact source and licence of each file.
-// One shared loader/cache: multiple calls for the same texture (e.g.
-// reopening the education panel, which clones meshes) reuse one GPU upload
-// instead of re-decoding the image every time.
+// CC-BY-licensed texture images make Saturn and Earth read as real planets
+// instead of flat-shaded spheres — see src/content/CREDITS.md for the exact
+// source and licence of each file. Each one ships as a normal-mode and a
+// smaller `_lg` low-graphics file; callers pass `lowGraphics` and this picks
+// the right one. One shared loader/cache: multiple calls for the same
+// texture (e.g. reopening the education panel, which clones meshes) reuse
+// one GPU upload instead of re-decoding the image every time.
 const loader = new THREE.TextureLoader();
 const cache = new Map();
 
@@ -17,33 +18,44 @@ function loadTexture(path, { colorSpace } = {}) {
   return texture;
 }
 
-export function loadSaturnBandsTexture() {
-  return loadTexture("/cosmos/assets/saturn_bands.jpg", { colorSpace: THREE.SRGBColorSpace });
+function variant(base, lowGraphics) {
+  if (!lowGraphics) return `/cosmos/assets/${base}`;
+  return `/cosmos/assets/${base.replace(/\.(jpg|png)$/, "_lg.$1")}`;
 }
 
-export function loadSaturnRingTexture() {
-  const texture = loadTexture("/cosmos/assets/saturn_ring_alpha.png");
+export function loadSaturnBandsTexture(lowGraphics) {
+  return loadTexture(variant("saturn_bands.jpg", lowGraphics), { colorSpace: THREE.SRGBColorSpace });
+}
+
+export function loadSaturnRingTexture(lowGraphics) {
+  const texture = loadTexture(variant("saturn_ring_alpha.png", lowGraphics));
   texture.wrapS = THREE.ClampToEdgeWrapping;
   texture.wrapT = THREE.ClampToEdgeWrapping;
   return texture;
 }
 
-export function loadEarthDaymapTexture() {
-  return loadTexture("/cosmos/assets/earth_daymap.jpg", { colorSpace: THREE.SRGBColorSpace });
+export function loadEarthDaymapTexture(lowGraphics) {
+  return loadTexture(variant("earth_daymap.jpg", lowGraphics), { colorSpace: THREE.SRGBColorSpace });
+}
+
+// Earth's city-lights texture is only ever used on the night shader (see
+// atmosphere.js's day/night material), which only exists in normal mode —
+// no low-graphics variant is loaded.
+export function loadEarthNightTexture() {
+  return loadTexture("/cosmos/assets/earth_night.jpg", { colorSpace: THREE.SRGBColorSpace });
 }
 
 export function loadEarthCloudsTexture() {
   return loadTexture("/cosmos/assets/earth_clouds.jpg");
 }
 
-export function loadMilkyWayTexture() {
-  return loadTexture("/cosmos/assets/milkyway.jpg", { colorSpace: THREE.SRGBColorSpace });
+export function loadMilkyWayTexture(lowGraphics) {
+  return loadTexture(variant("milkyway.jpg", lowGraphics), { colorSpace: THREE.SRGBColorSpace });
 }
 
 // A soft round dot, drawn once to an offscreen canvas rather than fetched
-// over the network — used as the point sprite for both the starfield and
-// the Sun glow, so neither needs its own texture asset. Cached so every
-// caller shares one GPU upload.
+// over the network — used as the point sprite for the starfield. Cached so
+// every caller shares one GPU upload.
 let dotTexture = null;
 export function getRadialDotTexture() {
   if (dotTexture) return dotTexture;
@@ -60,6 +72,30 @@ export function getRadialDotTexture() {
   ctx.fillRect(0, 0, size, size);
   dotTexture = new THREE.CanvasTexture(canvas);
   return dotTexture;
+}
+
+// A larger, softer radial glow used for the Sun sprite — a bigger falloff
+// radius than the star dot so it reads as a glowing disc with a gradual
+// fade, not a hard-edged point.
+let sunGlowTexture = null;
+export function getSunGlowTexture() {
+  if (sunGlowTexture) return sunGlowTexture;
+  const size = 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const center = size / 2;
+  const gradient = ctx.createRadialGradient(center, center, 0, center, center, center);
+  gradient.addColorStop(0, "rgba(255,255,255,1)");
+  gradient.addColorStop(0.15, "rgba(255,250,230,1)");
+  gradient.addColorStop(0.35, "rgba(255,230,160,0.9)");
+  gradient.addColorStop(0.6, "rgba(255,200,110,0.35)");
+  gradient.addColorStop(1, "rgba(255,180,90,0)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  sunGlowTexture = new THREE.CanvasTexture(canvas);
+  return sunGlowTexture;
 }
 
 // RingGeometry's built-in UVs are a flat XY projection (u,v both derived from
