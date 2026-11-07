@@ -58,8 +58,8 @@ export function createEarthSurfaceMaterial({ dayMap, nightMap, sunDir }) {
         float dayAmount = smoothstep(-0.15, 0.15, sunFacing);
         // City lights only belong on the dark side, fading out approaching
         // the terminator so they never appear to "glow through" daylight.
-        vec3 litDay = day * (0.15 + 0.85 * dayAmount);
-        vec3 cityLights = night * (1.0 - dayAmount);
+        vec3 litDay = day * (0.009 + 1.15 * max(sunFacing, 0.0)) * dayAmount;
+        vec3 cityLights = night * (1.0 - dayAmount) * 1.2;
         gl_FragColor = vec4(linearToSRGB(litDay + cityLights), 1.0);
       }
     `,
@@ -96,13 +96,13 @@ export function createAtmosphereMaterial(sunDir) {
       varying vec3 vWorldPosition;
       void main() {
         vec3 viewDir = normalize(cameraPosition - vWorldPosition);
-        float rim = 1.0 - max(dot(viewDir, vNormal), 0.0);
+        float rim = 1.0 - abs(dot(viewDir, normalize(vNormal)));
         rim = pow(rim, 3.0);
         float sunFacing = max(dot(vNormal, sunDirection), 0.0);
         // Strongest near the sunlit edge, present but dim on the dark
         // side — real atmospheric limb glow doesn't vanish at night.
         float lightFactor = mix(0.25, 1.0, sunFacing);
-        gl_FragColor = vec4(linearToSRGB(glowColor), rim * lightFactor * 0.75);
+        gl_FragColor = vec4(linearToSRGB(glowColor), rim * lightFactor * 0.48);
       }
     `,
     transparent: true,

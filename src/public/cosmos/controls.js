@@ -14,8 +14,8 @@ export function attachKeyboardControls(camera, controls) {
   }
 
   window.addEventListener("keydown", (event) => {
-    if (isTyping()) return;
-    pressed.add(event.key.toLowerCase());
+    if (isTyping() || document.activeElement?.closest("dialog, button, nav, a")) return;
+    if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","+","-","=","_","w","a","s","d"].includes(event.key)) {event.preventDefault();pressed.add(event.key.toLowerCase());}
   });
   window.addEventListener("keyup", (event) => {
     pressed.delete(event.key.toLowerCase());
@@ -26,6 +26,7 @@ export function attachKeyboardControls(camera, controls) {
   const zoomSpeed = 8; // units/sec
 
   return function update(deltaSeconds) {
+    if (isTyping() || document.activeElement?.closest("dialog, button, nav, a")) {pressed.clear();return;}
     if (pressed.size === 0) return;
 
     const offset = camera.position.clone().sub(controls.target);

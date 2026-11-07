@@ -3,18 +3,22 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>COSMOS</title>
+    <title>COSMOS — A shared journey through space</title>
+    <meta name="description" content="Explore seven cosmic destinations, discover the evidence behind them, and share observations with other explorers in real time." />
     <link rel="stylesheet" href="/style.css" />
     <script type="importmap">
       { "imports": { "three": "/vendor/three.module.js" } }
     </script>
   </head>
   <body>
+    <div id="scene-shade" aria-hidden="true"></div>
     <canvas id="cosmos-canvas" aria-label="3D view of space. Use the destination list to select an object with a keyboard."></canvas>
 
     <header id="topbar">
-      <a id="logo" href="/">COSMOS</a>
+      <a id="logo" href="/" aria-label="COSMOS home"><span class="logo-orbit" aria-hidden="true">◌</span> COSMOS<span class="logo-caption">A SHARED JOURNEY</span></a>
       <div id="topbar-controls">
+        <span id="connection-status" role="status">Connecting</span>
+        <button id="audio-toggle" type="button" aria-pressed="false" title="Optional ambient soundtrack">Sound off</button>
         <label id="low-graphics-label" hidden>
           <input type="checkbox" id="low-graphics-toggle" />
           Low graphics
@@ -24,21 +28,29 @@
     </header>
 
     <nav id="object-list-wrap" aria-label="Objects to explore" hidden>
-      <h2>Destinations</h2>
+      <h2>THE EXPLORER’S INDEX <span>07</span></h2>
       <div id="object-list"></div>
     </nav>
 
     <section id="name-gate">
-      <h2>Who's exploring?</h2>
+      <p class="eyebrow">FROM OUR WORLD TO THE COSMIC WEB</p><h2>The universe is better<br />explored together.</h2><p>Seven destinations. Billions of years of light.<br />Take your time. Notice something. Share it.</p>
       <form id="name-form">
-        <input type="text" id="name-input" placeholder="Your name" maxlength="40" required />
-        <button type="submit">Explore</button>
+        <label class="sr-only" for="name-input">Your explorer name</label><input autocomplete="nickname" type="text" id="name-input" placeholder="Your name" maxlength="40" required />
+        <button type="submit">Begin exploring <span aria-hidden="true">↗</span></button>
       </form>
+      <p class="privacy-note">Your name stays private. Shared notes appear as “an explorer”.</p>
+      <p id="name-error" role="alert"></p>
     </section>
+
+    <section id="scene-caption" hidden aria-live="polite"><p class="eyebrow" id="scene-kind"></p><h1 id="scene-title">Earth</h1><p id="scene-subtitle"></p><p id="scene-distance"></p></section>
+    <div id="scene-toolbar" hidden><button id="home-button" type="button" title="Return to Earth">⌂ <span>Home</span></button><button id="focus-button" type="button">Reset view</button><button id="motion-toggle" type="button" aria-pressed="false">Pause motion</button><button id="info-button" type="button">Explore Earth ↗</button></div>
+    <footer id="scene-footer"><span id="scene-model">Surface imagery · illustrative lighting</span><span class="control-hint">Drag to orbit <b>·</b> Scroll to zoom <b>·</b> WASD / ±</span><span>Distances &amp; sizes compressed</span></footer>
+    <p id="app-status" role="status">Preparing your window into space…</p>
+    <noscript><p class="no-script">COSMOS needs JavaScript for its interactive scene and shared atlas.</p></noscript>
 
     <dialog id="object-panel" aria-labelledby="panel-name">
       <button type="button" id="panel-close" aria-label="Close">×</button>
-      <canvas id="panel-preview-canvas"></canvas>
+      <p class="eyebrow" id="panel-kind"></p><canvas id="panel-preview-canvas" aria-label="Illustrative destination model"></canvas>
       <h2 id="panel-name"></h2>
 
       <div class="panel-tabs" role="tablist" aria-label="Object information">
@@ -50,7 +62,7 @@
       <div id="tabpanel-overview" class="panel-tabpanel" role="tabpanel" aria-labelledby="tab-overview" tabindex="0">
         <p id="panel-lookback" class="lookback"></p>
         <p id="panel-text"></p>
-        <h3>Sources</h3>
+        <h3>Follow the evidence</h3>
         <ul id="panel-sources"></ul>
       </div>
 
@@ -59,7 +71,8 @@
       </div>
 
       <div id="tabpanel-atlas" class="panel-tabpanel" role="tabpanel" aria-labelledby="tab-atlas" tabindex="0" hidden>
-        <form id="observation-form">
+        <p class="atlas-intro">What did you notice? Compare your observations with other explorers. These are shared notes, not verified scientific facts.</p><p id="atlas-status" role="status"></p><form id="observation-form">
+          <label class="sr-only" for="observation-input">Your observation</label>
           <textarea id="observation-input" maxlength="280" placeholder="Share an observation…" required></textarea>
           <div class="observation-form-footer">
             <span id="observation-char-count">0/280</span>

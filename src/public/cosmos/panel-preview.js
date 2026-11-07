@@ -46,7 +46,7 @@ export function createPanelPreview(canvas) {
     const worldPoints = [];
     const vertex = new THREE.Vector3();
     mesh.traverse((node) => {
-      if (!node.geometry) return;
+      if (!node.geometry || node.isSprite || node.userData.ignoreBounds) return;
       const position = node.geometry.attributes.position;
       for (let i = 0; i < position.count; i++) {
         vertex.fromBufferAttribute(position, i).applyMatrix4(node.matrixWorld);
@@ -70,7 +70,8 @@ export function createPanelPreview(canvas) {
   }
 
   function render() {
-    if (current) current.rotation.y += 0.01;
+    // The preview stays still; motion controls apply to the main scene.
+    if (document.hidden) { frameId=requestAnimationFrame(render);return; }
     renderer.render(scene, camera);
     frameId = requestAnimationFrame(render);
   }

@@ -9,9 +9,9 @@ import {
   loadEarthCloudsTexture,
   loadMilkyWayTexture,
   getRadialDotTexture,
-  getSunGlowTexture,
   applyRadialRingUVs,
 } from "./textures.js";
+import { createStar, createGalaxy, createWeb } from "./celestial.js";
 import { createAtmosphereMaterial, createEarthSurfaceMaterial } from "./atmosphere.js";
 
 // Objects still inside the Milky Way (even the two nearby stars, at 548 and
@@ -73,8 +73,9 @@ function buildObjectMesh(id, lowGraphics, sunDir) {
           new THREE.SphereGeometry(1.012, 48, 32),
           new THREE.MeshStandardMaterial({
             map: loadEarthCloudsTexture(),
+            alphaMap: loadEarthCloudsTexture(),
             transparent: true,
-            opacity: 0.55,
+            opacity: 0.8,
             depthWrite: false,
           }),
         );
@@ -87,7 +88,7 @@ function buildObjectMesh(id, lowGraphics, sunDir) {
         // pattern, same reasoning: both are decorative, neither is needed
         // to read Earth as Earth.
         const atmosphere = new THREE.Mesh(
-          new THREE.SphereGeometry(1.06, 48, 32),
+          new THREE.SphereGeometry(1.025, 48, 32),
           createAtmosphereMaterial(sunDir),
         );
         earth.add(atmosphere);
@@ -132,111 +133,22 @@ function buildObjectMesh(id, lowGraphics, sunDir) {
       );
       // Saturn's real axial tilt is about 27 degrees from vertical; the ring
       // plane tilts with it rather than sitting arbitrarily angled.
-      ring.rotation.x = Math.PI / 2 - THREE.MathUtils.degToRad(27);
+      ring.rotation.x = Math.PI / 2;
+      group.rotation.z = THREE.MathUtils.degToRad(27);
       group.add(body, ring);
       return group;
     }
-    case "betelgeuse": {
-      const geometry = new THREE.SphereGeometry(2.4, lowGraphics ? 16 : 32, lowGraphics ? 12 : 24);
-      const material = new THREE.MeshStandardMaterial({
-        color: 0xff6a35,
-        emissive: 0xff3300,
-        emissiveIntensity: 1.3,
-        roughness: 1,
-      });
-      return new THREE.Mesh(geometry, material);
-    }
-    case "gaia-bh1": {
-      // Only the Sun-like companion star is shown — the black hole itself
-      // stays invisible, per the brief.
-      const geometry = new THREE.SphereGeometry(1, lowGraphics ? 16 : 32, lowGraphics ? 12 : 24);
-      const material = new THREE.MeshStandardMaterial({
-        color: 0xffe08a,
-        emissive: 0xffb02e,
-        emissiveIntensity: 0.7,
-        roughness: 1,
-      });
-      return new THREE.Mesh(geometry, material);
-    }
-    case "andromeda":
-      return buildPointCloud({ count: lowGraphics ? 800 : 4000, spread: 3, flatten: 0.15, color: 0xaad4ff, opacity: 0.8, core: true });
-    case "quipu":
-      return buildChainCloud({ count: lowGraphics ? 400 : 2000, length: 6, color: 0x7fffd4 });
-    case "great-wall":
-      return buildPointCloud({ count: lowGraphics ? 600 : 3000, spread: 4, flatten: 0.6, color: 0xcfcfcf, opacity: 0.25, jitter: 1.4 });
+    case "betelgeuse": return createStar(2.4, true, lowGraphics);
+    case "gaia-bh1": return createStar(1, false, lowGraphics);
+    case "andromeda": return createGalaxy(lowGraphics);
+    case "quipu": return createWeb(false, lowGraphics);
+    case "great-wall": return createWeb(true, lowGraphics);
     default:
       return new THREE.Mesh(
         new THREE.SphereGeometry(1, 16, 12),
         new THREE.MeshStandardMaterial({ color: 0xffffff }),
       );
   }
-}
-
-function buildPointCloud({ count, spread, flatten, color, opacity, jitter = 1, core = false }) {
-  const positions = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    // Exponent > 1 concentrates more points toward the centre (a galaxy's
-    // bright core and tightly-wound inner arms) while still thinning out
-    // toward the edge; exponent 0.5 (the non-core case) instead spreads
-    // points uniformly across the disc's area, which reads better for an
-    // amorphous cloud like the Great Wall — a visualisation of a proposed,
-    // unconfirmed structure, not a photograph of one.
-    const r = spread * Math.pow(Math.random(), core ? 1.8 : 0.5) * jitter;
-    const theta = Math.random() * Math.PI * 2;
-    const x = Math.cos(theta) * r;
-    const z = Math.sin(theta) * r;
-    const y = (Math.random() - 0.5) * spread * flatten * (1 - 0.6 * (r / spread));
-    positions.set([x, y, z], i * 3);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  const material = new THREE.PointsMaterial({
-    color,
-    size: 0.05,
-    transparent: true,
-    opacity,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  const points = new THREE.Points(geometry, material);
-
-  if (!core) return points;
-
-  // A small bright core glow gives a galaxy an obvious bulge at a glance,
-  // for the cost of one extra low-poly sphere.
-  const group = new THREE.Group();
-  const bulge = new THREE.Mesh(
-    new THREE.SphereGeometry(spread * 0.08, 12, 8),
-    new THREE.MeshBasicMaterial({ color: 0xfff4d6, transparent: true, opacity: 0.9 }),
-  );
-  group.add(bulge, points);
-  return group;
-}
-
-// A long, glowing chain of points following a gently curved path — Quipu's
-// shape as one of the largest known galaxy-cluster filaments, reconstructed
-// from X-ray cluster surveys rather than directly imaged as a single object.
-function buildChainCloud({ count, length, color }) {
-  const positions = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    const t = i / count;
-    const x = (t - 0.5) * length * 2;
-    const curve = Math.sin(t * Math.PI * 3) * 0.6;
-    const y = curve + (Math.random() - 0.5) * 0.3;
-    const z = Math.cos(t * Math.PI * 3) * 0.4 + (Math.random() - 0.5) * 0.3;
-    positions.set([x, y, z], i * 3);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  const material = new THREE.PointsMaterial({
-    color,
-    size: 0.08,
-    transparent: true,
-    opacity: 0.9,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  return new THREE.Points(geometry, material);
 }
 
 // A handful of plausible star colours by rough stellar type (blue-white,
@@ -298,46 +210,6 @@ function buildStarfield(lowGraphics) {
   return group;
 }
 
-// The Sun: a camera-facing billboard group at the origin, the same point
-// used as the light source, so the visible glow and the lighting direction
-// are consistent. Two layered sprites sharing one radial-gradient texture
-// (an intense white-yellow core, wrapped in a larger, softer golden halo)
-// read as a glowing star rather than a flat-coloured circle. Never added
-// to the objects Map, so raycastAt() (which only intersects
-// objects.values()) automatically skips it — it isn't selectable, isn't in
-// the object list, and isn't scientific content.
-function buildSunSprite() {
-  const group = new THREE.Group();
-  const glow = getSunGlowTexture();
-
-  const halo = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: glow,
-      color: 0xffcf80,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      transparent: true,
-      opacity: 0.85,
-    }),
-  );
-  halo.scale.set(16, 16, 1);
-
-  const core = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: glow,
-      color: 0xffffff,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      transparent: true,
-    }),
-  );
-  core.scale.set(4.5, 4.5, 1);
-
-  group.add(halo, core);
-  group.position.set(0, 0, 0);
-  return group;
-}
-
 // The sky background (stars + Milky Way) as a true skybox: re-centred on
 // the camera every frame so it never appears to get closer no matter how
 // far the camera travels within the scene (radius only needs to clear
@@ -355,9 +227,11 @@ function buildMilkyWay(lowGraphics) {
     side: THREE.BackSide,
     depthWrite: false,
     transparent: true,
-    opacity: 0.85,
+    opacity: 0.5,
   });
-  return new THREE.Mesh(geometry, material);
+  const sky = new THREE.Mesh(geometry, material);
+  sky.rotation.set(.4, 1.9, .7);
+  return sky;
 }
 
 function prefersReducedMotion() {
@@ -394,16 +268,18 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
   const sunLight = new THREE.PointLight(0xffffff, 2.4, 0, 0);
   sunLight.position.set(0, 0, 0);
   scene.add(sunLight);
-  scene.add(buildSunSprite());
+  // Lighting source is at the origin; no oversized Sun billboard in the compressed map.
 
   const milkyWay = buildMilkyWay(lowGraphics);
   scene.add(milkyWay);
-  scene.add(buildStarfield(lowGraphics));
+  const stars = buildStarfield(lowGraphics);
+  scene.add(stars);
 
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
-  controls.minDistance = 2;
+  controls.minDistance = 1.4;
+  controls.enablePan = false;
   controls.maxDistance = 400;
 
   const layout = computeLayout();
@@ -433,7 +309,7 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
     const worldPoints = [];
     const vertex = new THREE.Vector3();
     mesh.traverse((node) => {
-      if (!node.geometry) return;
+      if (!node.geometry || node.isSprite || node.userData.ignoreBounds) return;
       const position = node.geometry.attributes.position;
       for (let i = 0; i < position.count; i++) {
         vertex.fromBufferAttribute(position, i).applyMatrix4(node.matrixWorld);
@@ -455,8 +331,8 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
   let milkyWayFadeTo = milkyWay.material.opacity;
   let milkyWayFadeStart = 0;
   const MILKY_WAY_FADE_DURATION = 1200;
-  const MILKY_WAY_OPACITY_IN_GALAXY = 0.85;
-  const MILKY_WAY_OPACITY_EXTRAGALACTIC = 0.12;
+  const MILKY_WAY_OPACITY_IN_GALAXY = 0.5;
+  const MILKY_WAY_OPACITY_EXTRAGALACTIC = 0.015;
 
   function setMilkyWayTarget(objectId) {
     const target = IN_GALAXY.has(objectId) ? MILKY_WAY_OPACITY_IN_GALAXY : MILKY_WAY_OPACITY_EXTRAGALACTIC;
@@ -490,6 +366,7 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height, false);
+    updateViewOffset();
     if (!hasSelectedDestination) composeInitialCamera();
   }
   window.addEventListener("resize", resize);
@@ -499,81 +376,53 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
   // space instead of centring it behind the panel. Set by main.js whenever
   // the panel opens/closes or the desktop/mobile breakpoint changes.
   let viewportInset = { side: "none", sizePx: 0 };
+  let activeId = "earth";
+  let paused = prefersReducedMotion();
   function setViewportInset(inset) {
     viewportInset = inset ?? { side: "none", sizePx: 0 };
+    updateViewOffset();
   }
-
-  function getEffectiveAspect() {
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
-    if (viewportInset.side === "right") {
-      return Math.max(0.1, width - viewportInset.sizePx) / height;
-    }
-    if (viewportInset.side === "bottom") {
-      return width / Math.max(0.1, height - viewportInset.sizePx);
-    }
-    return width / height;
+  function viewArea() {
+    const w=canvas.clientWidth,h=canvas.clientHeight;
+    const desktop=w>768;
+    const left=desktop ? (w>1000 ? 250 : 195) : 0;
+    const right=viewportInset.side==="right" ? viewportInset.sizePx+36 : 0;
+    const bottom=viewportInset.side==="bottom" ? viewportInset.sizePx : (desktop?180:240);
+    return {w,h,left,right,bottom,top:desktop?90:100};
   }
-
-  // Frames `boundingRadius` within the given aspect ratio: the vertical and
-  // horizontal half-FOVs are compared and the tighter one used, which is
-  // what keeps a wide object (like Saturn's rings) inside frame on a
-  // narrow/portrait viewport, where horizontal FOV is tighter than the
-  // fixed vertical camera.fov, not just on a wide desktop one.
-  function frameDistance(boundingRadius, aspect, paddingFactor = 1.5) {
-    const verticalHalfFov = THREE.MathUtils.degToRad(camera.fov) / 2;
-    const horizontalHalfFov = Math.atan(Math.tan(verticalHalfFov) * aspect);
-    const effectiveHalfFov = Math.min(verticalHalfFov, horizontalHalfFov);
-    let distance = (boundingRadius / Math.sin(effectiveHalfFov)) * paddingFactor;
-    distance = Math.max(distance, Math.max(camera.near * 4, controls.minDistance));
-    distance = Math.min(distance, controls.maxDistance);
-    return distance;
+  function updateViewOffset(){
+    const {w,h,left,right,bottom,top}=viewArea();
+    camera.setViewOffset(w,h,(right-left)/2,(bottom-top)/2,w,h);
   }
-
-  // Shifts both the camera position and look-at target sideways (desktop,
-  // panel docked right) or upward (mobile, sheet docked bottom) by the
-  // panel's share of the viewport, so the framed object lands in the
-  // remaining visible area rather than being centred behind the panel.
-  // An approximation (a uniform shift of the whole framing) rather than an
-  // exact asymmetric-frustum crop (THREE.PerspectiveCamera.setViewOffset
-  // would be the precise alternative) — simpler to keep in sync with the
-  // existing lerp-based flight, and close enough in practice.
-  function applyPanelOffset(cameraPos, targetPos, distance) {
-    if (viewportInset.side === "none" || viewportInset.sizePx <= 0) {
-      return { cameraPos, targetPos };
-    }
-    const viewDir = new THREE.Vector3().subVectors(targetPos, cameraPos).normalize();
-    const worldUp = new THREE.Vector3(0, 1, 0);
-    let right = new THREE.Vector3().crossVectors(viewDir, worldUp);
-    if (right.lengthSq() < 1e-6) right = new THREE.Vector3(1, 0, 0);
-    right.normalize();
-    const up = new THREE.Vector3().crossVectors(right, viewDir).normalize();
-    const verticalHalfFov = THREE.MathUtils.degToRad(camera.fov) / 2;
-
-    if (viewportInset.side === "right") {
-      const fraction = Math.min(0.8, viewportInset.sizePx / canvas.clientWidth);
-      const horizontalHalfFov = Math.atan(Math.tan(verticalHalfFov) * camera.aspect);
-      const worldHalfWidth = distance * Math.tan(horizontalHalfFov);
-      const shift = worldHalfWidth * fraction * 0.5;
-      const delta = right.clone().multiplyScalar(-shift);
-      return { cameraPos: cameraPos.clone().add(delta), targetPos: targetPos.clone().add(delta) };
-    }
-    if (viewportInset.side === "bottom") {
-      const fraction = Math.min(0.8, viewportInset.sizePx / canvas.clientHeight);
-      const worldHalfHeight = distance * Math.tan(verticalHalfFov);
-      const shift = worldHalfHeight * fraction * 0.5;
-      const delta = up.clone().multiplyScalar(shift);
-      return { cameraPos: cameraPos.clone().add(delta), targetPos: targetPos.clone().add(delta) };
-    }
-    return { cameraPos, targetPos };
+  function getEffectiveAspect(){const {w,h,left,right,bottom,top}=viewArea();return Math.max(100,w-left-right)/Math.max(100,h-top-bottom);}
+  function frameDistance(radius, aspect, padding=1.2){
+    const {w,h,left,right,bottom,top}=viewArea();
+    const half=Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov)/2)*Math.max(.2,(h-top-bottom)/h));
+    const horizontal=Math.atan(Math.tan(half)*aspect);
+    return Math.min(controls.maxDistance, radius/Math.sin(Math.min(half,horizontal))*padding);
   }
-
+  function applyPanelOffset(cameraPos,targetPos){updateViewOffset();return {cameraPos,targetPos};}
+  function approach(id){
+    if(id==="earth")return new THREE.Vector3(-.8,.32,1).normalize();
+    if(id==="saturn")return new THREE.Vector3(-.45,.58,1).normalize();
+    if(id==="andromeda")return new THREE.Vector3(.1,.85,1).normalize();
+    return new THREE.Vector3(0,.25,1).normalize();
+  }
+  function showDestination(id){
+    activeId=id;
+    for(const [key,entry] of objects)entry.mesh.visible=key===id;
+    const entry=objects.get(id);
+    controls.minDistance=entry.boundingRadius*1.18;
+    controls.maxDistance=Math.max(120,entry.boundingRadius*14);
+  }
+  showDestination("earth");
   let flight = null; // { fromPos, toPos, fromTarget, toTarget, start, duration, onArrive }
 
   function flyTo(objectId, { onArrive } = {}) {
     const entry = objects.get(objectId);
     if (!entry) return;
     hasSelectedDestination = true;
+    showDestination(objectId);
     const targetPos = entry.mesh.position.clone();
     const aspect = getEffectiveAspect();
     const distance = frameDistance(entry.boundingRadius, aspect);
@@ -581,7 +430,7 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
     // and slightly to one side, rather than dead-on — so the camera visibly
     // arcs toward the destination instead of flying straight down the
     // look-at axis.
-    const approachDir = new THREE.Vector3(0, 0.32, 1).normalize();
+    const approachDir = approach(objectId);
     const rawCameraPos = targetPos.clone().addScaledVector(approachDir, distance);
     const { cameraPos, targetPos: offsetTarget } = applyPanelOffset(rawCameraPos, targetPos, distance);
 
@@ -610,7 +459,7 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
     const targetPos = entry.mesh.position.clone();
     const aspect = getEffectiveAspect();
     const distance = frameDistance(entry.boundingRadius, aspect);
-    const approachDir = new THREE.Vector3(0, 0.32, 1).normalize();
+    const approachDir = approach(objectId);
     const rawCameraPos = targetPos.clone().addScaledVector(approachDir, distance);
     const { cameraPos, targetPos: offsetTarget } = applyPanelOffset(rawCameraPos, targetPos, distance);
     const reducedMotion = prefersReducedMotion();
@@ -637,44 +486,11 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
   // the "similar apparent size" the brief says to avoid. A fixed
   // world-up-based cross axis keeps the shot Earth-only and predictable.
   function composeInitialCamera() {
-    const earthEntry = objects.get("earth");
-    if (!earthEntry) return;
-
-    const E = earthEntry.mesh.position.clone();
-    const sunDirFromOrigin = E.clone().normalize();
-
-    let crossAxis = new THREE.Vector3(0, 1, 0);
-    const projected = crossAxis.clone().sub(
-      sunDirFromOrigin.clone().multiplyScalar(crossAxis.dot(sunDirFromOrigin)),
-    );
-    if (projected.lengthSq() > 1e-6) {
-      crossAxis = projected.normalize();
-    } else {
-      crossAxis = new THREE.Vector3(0, 0, 1);
-    }
-
-    // theta=0 would look straight along the light (an almost fully-lit
-    // disc, no visible terminator); theta=90deg gives a plain half-lit
-    // view. ~65 degrees shows a lit crescent, a clear terminator arc, and
-    // a sliver of night side together in one frame.
-    const theta = THREE.MathUtils.degToRad(65);
-    const viewAxis = sunDirFromOrigin
-      .clone()
-      .multiplyScalar(Math.cos(theta))
-      .add(crossAxis.clone().multiplyScalar(Math.sin(theta)))
-      .normalize();
-
-    // Padding factor tuned (against the corrected bounding-sphere radius
-    // above) so Earth's apparent diameter lands at ~55-65% of the viewport's
-    // usable height, as the brief requires: solving frameDistance's FOV
-    // geometry backwards, 1.6 yields ~58% here.
-    const aspect = getEffectiveAspect();
-    const distance = frameDistance(earthEntry.boundingRadius, aspect, 1.6);
-    const rawCameraPos = E.clone().addScaledVector(viewAxis, -distance);
-    const { cameraPos, targetPos } = applyPanelOffset(rawCameraPos, E, distance);
-
-    camera.position.copy(cameraPos);
-    controls.target.copy(targetPos);
+    const entry=objects.get("earth");
+    const distance=frameDistance(entry.boundingRadius,getEffectiveAspect(),1.15);
+    camera.position.copy(entry.mesh.position).addScaledVector(approach("earth"),distance);
+    controls.target.copy(entry.mesh.position);
+    updateViewOffset();
   }
   composeInitialCamera();
 
@@ -702,18 +518,15 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
       // background never appears to get closer no matter how far the
       // camera travels within the scene.
       milkyWay.position.copy(camera.position);
+      stars.position.copy(camera.position);
       if (!flight) onFrame?.(deltaSeconds);
       controls.update();
-      for (const { mesh } of objects.values()) {
-        // A slow, subtle rotation — not fast enough to look like a toy, but
-        // enough that the day/night terminator visibly sweeps across
-        // Earth's rotating surface over time.
-        mesh.rotation.y += 0.0012;
-        // The cloud shell drifts slightly faster than the globe beneath it,
-        // which is the one cue that reads as "clouds moving" rather than
-        // "texture painted on" — kept subtle, not sped up.
-        const clouds = mesh.children.find((child) => child.userData.isCloudLayer);
-        if (clouds) clouds.rotation.y += 0.0004;
+      if (!paused) for (const [id,{mesh}] of objects) {
+        if(!mesh.visible)continue;
+        if(id==="earth")mesh.rotation.y += deltaSeconds*.018;
+        if(id==="betelgeuse" || id==="gaia-bh1")mesh.material.uniforms.time.value+=deltaSeconds;
+        const clouds=mesh.children.find(child=>child.userData.isCloudLayer);
+        if(clouds)clouds.rotation.y+=deltaSeconds*.007;
       }
       renderer.render(scene, camera);
     }
@@ -724,7 +537,7 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
   function raycastAt(ndcX, ndcY) {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera({ x: ndcX, y: ndcY }, camera);
-    const meshes = [...objects.values()].map((o) => o.mesh);
+    const meshes = [...objects.values()].map((o) => o.mesh).filter(mesh=>mesh.visible);
     const hits = raycaster.intersectObjects(meshes, true);
     if (hits.length === 0) return null;
     let node = hits[0].object;
@@ -743,5 +556,8 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
     setViewportInset,
     raycastAt,
     resize,
+    setPaused(value) { paused=value; },
+    get paused() { return paused; },
+    reset() { reframeCurrent(activeId); },
   };
 }
