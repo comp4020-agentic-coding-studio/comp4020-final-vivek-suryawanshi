@@ -1,3 +1,5 @@
+import { createJourney } from "./journey.js";
+import { createComparison } from "./comparison.js";
 import { createFallbackScene } from "./fallback.js";
 import { PRESENTATION } from "./presentation.js";
 import { createAmbience } from "./audio.js";
@@ -38,6 +40,10 @@ let objectsContent = {};
 let lastTriggerEl = null;
 let selectedObjectId = "earth";
 let appReady = false;
+let journey, comparison;
+let spaceMode = false;
+let navigationVersion = 0;
+let resumeJourneyAfterSpace = false;
 const statusEl = document.getElementById("app-status");
 const ambience = createAmbience(document.getElementById("audio-toggle"));
 function setStatus(text) { statusEl.textContent = text; }
@@ -243,12 +249,18 @@ window.addEventListener("resize", () => {
   }
 });
 
-function selectObject(objectId, triggerEl, showInfo = true) {
+function selectObject(objectId, triggerEl, showInfo = true, { fromJourney = false, onArrive } = {}) {
   if (!appReady) return;
+  if (!fromJourney) journey?.stop();
+  const visitVersion = ++navigationVersion;
   selectedObjectId=objectId;
   updateCaption(objectId);markSelectedButton(objectId);
   setStatus(`Travelling to ${PRESENTATION[objectId].short}…`);
-  scene.flyTo(objectId, { onArrive: () => {setStatus("");if(showInfo)openPanel(objectId,triggerEl);} });
+  scene.flyTo(objectId, { onArrive: () => {
+    if (visitVersion !== navigationVersion) return;
+    setStatus("");onArrive?.();
+    if(showInfo && !spaceMode)openPanel(objectId,triggerEl);
+  } });
 }
 
 function showApp() {
@@ -257,6 +269,7 @@ function showApp() {
   lowGraphicsLabelEl.hidden = false;
   document.getElementById("scene-caption").hidden=false;
   document.getElementById("scene-toolbar").hidden=false;
+  document.getElementById("experience-launcher").hidden=false;
   updateCaption("earth");markSelectedButton("earth");
 }
 
@@ -292,6 +305,71 @@ function connectStream() {
       atlas.handleStreamEvent(type, JSON.parse(event.data));
     });
   }
+}
+
+function setupExperiences() {
+  const card=document.getElementById("journey-card");
+  const start=document.getElementById("journey-start");
+  const pause=document.getElementById("journey-pause");
+  let previousStop=null;
+  journey=createJourney({
+    visit(id,arrive){selectObject(id,null,false,{fromJourney:true,onArrive:arrive});},
+    onChange(state){
+      card.hidden=!state.active;
+      document.body.classList.toggle("journey-active",state.active);
+      start.textContent=state.active?"Restart journey":"▷ Take a journey";
+      scene.setJourneyMode?.(state.active);
+      scene.setAutoOrbit?.(state.active&&!state.paused&&!state.travelling);
+      if(!state.active){
+        previousStop=null;
+        if(state.completed){setStatus("Journey complete. Choose a destination or share what you noticed in the Atlas.");start.focus();}
+        return;
+      }
+      document.getElementById("journey-step").textContent=`${String(state.index+1).padStart(2,"0")} / 07 · ${PRESENTATION[state.stop.id].short}`;
+      if(previousStop!==state.stop.id){
+        document.getElementById("journey-title").textContent=state.stop.title;
+        document.getElementById("journey-text").textContent=state.stop.text;
+        document.getElementById("journey-question").textContent=state.stop.question;
+        previousStop=state.stop.id;
+      }
+      document.getElementById("journey-progress").value=state.index+1;
+      document.getElementById("journey-previous").disabled=state.index===0;
+      document.getElementById("journey-next").textContent=state.index===state.total-1?"Finish journey ✓":"Next stop →";
+      pause.textContent=state.paused?"Resume journey":"Pause journey";
+      pause.setAttribute("aria-pressed",String(state.paused));
+      document.getElementById("journey-state").textContent=state.travelling?"Travelling…":state.paused?"Paused":"Auto-advance · 18s per stop";
+    },
+  });
+  start.addEventListener("click",()=>{closePanel();updateViewportInset();journey.start();pause.focus();});
+  pause.addEventListener("click",()=>journey.state.paused?journey.resume():journey.pause());
+  document.getElementById("journey-previous").addEventListener("click",()=>journey.previous());
+  document.getElementById("journey-next").addEventListener("click",()=>journey.next());
+  document.getElementById("journey-exit").addEventListener("click",()=>{journey.stop();start.focus();});
+  document.addEventListener("visibilitychange",()=>journey.setHidden(document.hidden));
+  comparison=createComparison({dialog:document.getElementById("comparison-dialog"),onOpen(){journey.pause();closePanel();}});
+  document.getElementById("comparison-open").addEventListener("click",event=>comparison.open(event.currentTarget,selectedObjectId));
+  const chrome=["topbar","object-list-wrap","scene-caption","scene-toolbar","experience-launcher","journey-card","scene-footer","app-status"].map(id=>document.getElementById(id));
+  const exit=document.getElementById("space-exit");
+  let origin=null,enteredAt=0;
+  function leaveSpace(){
+    if(!spaceMode)return;
+    spaceMode=false;document.body.classList.remove("space-mode");
+    for(const el of chrome){el.inert=false;el.removeAttribute("aria-hidden");}
+    exit.hidden=true;scene.setImmersive?.(false);document.getElementById("space-enter").focus();
+    if(resumeJourneyAfterSpace)journey.resume();
+  }
+  document.getElementById("space-enter").addEventListener("click",event=>{
+    resumeJourneyAfterSpace=journey.state.active&&!journey.state.paused;
+    journey.pause();closePanel();updateViewportInset();spaceMode=true;enteredAt=performance.now();origin={x:event.clientX,y:event.clientY};
+    document.body.classList.add("space-mode");for(const el of chrome){el.inert=true;el.setAttribute("aria-hidden","true");}
+    exit.hidden=false;scene.setImmersive?.(true);exit.focus();
+  });
+  exit.addEventListener("click",leaveSpace);
+  window.addEventListener("keydown",event=>{if(event.key==="Escape"&&spaceMode){event.preventDefault();leaveSpace();}});
+  window.addEventListener("pointermove",event=>{
+    if(spaceMode&&event.pointerType==="mouse"&&performance.now()-enteredAt>600&&origin&&Math.hypot(event.clientX-origin.x,event.clientY-origin.y)>30)leaveSpace();
+  });
+  // Touch users can return with the visible button; touching the scene still orbits it.
 }
 
 async function main() {
@@ -354,11 +432,12 @@ async function main() {
   setStatus("");
   document.getElementById("home-button").addEventListener("click",()=>{closePanel();selectObject("earth",null,false);});
   document.getElementById("focus-button").addEventListener("click",()=>scene.reset());
-  document.getElementById("info-button").addEventListener("click",event=>openPanel(selectedObjectId,event.currentTarget));
+  document.getElementById("info-button").addEventListener("click",event=>{journey?.stop();openPanel(selectedObjectId,event.currentTarget);});
   const motion=document.getElementById("motion-toggle");
   function syncMotion(){motion.textContent=scene.paused?"Resume motion":"Pause motion";motion.setAttribute("aria-pressed",String(scene.paused));}
   syncMotion();motion.addEventListener("click",()=>{scene.setPaused(!scene.paused);syncMotion();});
   canvas.addEventListener("webglcontextlost",event=>{event.preventDefault();setStatus("The 3D view was interrupted. Reload to restore it. Your notes are saved.");});
+  setupExperiences();
   connectStream();
   await checkName();
 }

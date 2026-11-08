@@ -378,16 +378,20 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
   let viewportInset = { side: "none", sizePx: 0 };
   let activeId = "earth";
   let paused = prefersReducedMotion();
+  let immersive = false;
+  let journeyMode = false;
+  let autoOrbit = false;
   function setViewportInset(inset) {
     viewportInset = inset ?? { side: "none", sizePx: 0 };
     updateViewOffset();
   }
   function viewArea() {
     const w=canvas.clientWidth,h=canvas.clientHeight;
+    if(immersive)return {w,h,left:0,right:0,bottom:0,top:0};
     const desktop=w>768;
     const left=desktop ? (w>1000 ? 250 : 195) : 0;
     const right=viewportInset.side==="right" ? viewportInset.sizePx+36 : 0;
-    const bottom=viewportInset.side==="bottom" ? viewportInset.sizePx : (desktop?180:240);
+    const bottom=viewportInset.side==="bottom" ? viewportInset.sizePx : (journeyMode?(desktop?385:430):(desktop?180:240));
     return {w,h,left,right,bottom,top:desktop?90:100};
   }
   function updateViewOffset(){
@@ -520,7 +524,9 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
       milkyWay.position.copy(camera.position);
       stars.position.copy(camera.position);
       if (!flight) onFrame?.(deltaSeconds);
-      controls.update();
+      controls.autoRotate=autoOrbit&&!paused&&!prefersReducedMotion();
+      controls.autoRotateSpeed=.35;
+      controls.update(deltaSeconds);
       if (!paused) for (const [id,{mesh}] of objects) {
         if(!mesh.visible)continue;
         if(id==="earth")mesh.rotation.y += deltaSeconds*.018;
@@ -557,6 +563,9 @@ export function createCosmosScene(canvas, { lowGraphics = false, onFrame = null 
     raycastAt,
     resize,
     setPaused(value) { paused=value; },
+    setAutoOrbit(value) { autoOrbit=value; },
+    setJourneyMode(value) { if(journeyMode===value)return;journeyMode=value;updateViewOffset();reframeCurrent(activeId); },
+    setImmersive(value) { immersive=value;updateViewOffset();reframeCurrent(activeId); },
     get paused() { return paused; },
     reset() { reframeCurrent(activeId); },
   };

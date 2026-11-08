@@ -3,6 +3,7 @@
 // projected onto a sphere, rather than displaying a stretched flat photograph.
 export function createFallbackScene(canvas, { lowGraphics = false } = {}) {
   const ctx=canvas.getContext('2d');
+  let immersive=false,journeyMode=false;
   let id='earth', inset={side:'none',sizePx:0}, paused=matchMedia('(prefers-reduced-motion: reduce)').matches, longitude=0, zoom=1, drag=null;
   const maps={}, images={};
   let seed=144;
@@ -71,7 +72,7 @@ export function createFallbackScene(canvas, { lowGraphics = false } = {}) {
     const local=['earth','saturn','betelgeuse','gaia-bh1'].includes(id);
     if(images.milkyway&&local){ctx.globalAlpha=.38;ctx.drawImage(images.milkyway,0,0,w,h);ctx.globalAlpha=1;}
     for(const [sx,sy,b,t] of stars){ctx.fillStyle=t>.8?`rgba(255,220,185,${.2+b*.6})`:`rgba(210,228,255,${.2+b*.65})`;ctx.beginPath();ctx.arc(sx*w,sy*h,b>.97?1.15:.45,0,Math.PI*2);ctx.fill();}
-    const desktop=w>768,left=desktop?(w>1000?260:200):0,right=inset.side==='right'?inset.sizePx+36:0,top=desktop?90:100,bottom=inset.side==='bottom'?inset.sizePx:(desktop?180:240);
+    const desktop=w>768,left=immersive?0:desktop?(w>1000?260:200):0,right=!immersive&&inset.side==='right'?inset.sizePx+36:0,top=immersive?0:desktop?90:100,bottom=immersive?0:inset.side==='bottom'?inset.sizePx:(journeyMode?(desktop?385:430):(desktop?180:240));
     const cx=(left+w-right)/2,cy=(top+h-bottom)/2,space=Math.max(120,Math.min(w-left-right,h-top-bottom)),radius=space*.37*zoom;
     if(['earth','saturn','betelgeuse','gaia-bh1'].includes(id)){
       const r=id==='saturn'?radius*.6:radius;const stellar=['betelgeuse','gaia-bh1'].includes(id);
@@ -98,5 +99,5 @@ export function createFallbackScene(canvas, { lowGraphics = false } = {}) {
   canvas.addEventListener('pointermove',event=>{if(drag)longitude=drag.longitude+(event.clientX-drag.x)/700;});
   canvas.addEventListener('pointerup',()=>{drag=null;});
   canvas.addEventListener('wheel',event=>{event.preventDefault();zoom=Math.max(.45,Math.min(1.5,zoom-event.deltaY*.001));},{passive:false});
-  return {objects:new Map(),flyTo(next,{onArrive}={}){id=next;zoom=1;onArrive?.();},reframeCurrent(){zoom=1;},setViewportInset(value){inset=value;},raycastAt(){return null;},resize:draw,setPaused(value){paused=value;},get paused(){return paused;},reset(){zoom=1;longitude=0;}};
+  return {objects:new Map(),flyTo(next,{onArrive}={}){id=next;zoom=1;onArrive?.();},reframeCurrent(){zoom=1;},setViewportInset(value){inset=value;},raycastAt(){return null;},resize:draw,setJourneyMode(value){journeyMode=value;draw();},setImmersive(value){immersive=value;draw();},setPaused(value){paused=value;},get paused(){return paused;},reset(){zoom=1;longitude=0;}};
 }

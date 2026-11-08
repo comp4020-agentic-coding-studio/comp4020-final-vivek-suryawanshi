@@ -44,6 +44,31 @@
 
     <section id="scene-caption" hidden aria-live="polite"><p class="eyebrow" id="scene-kind"></p><h1 id="scene-title">Earth</h1><p id="scene-subtitle"></p><p id="scene-distance"></p></section>
     <div id="scene-toolbar" hidden><button id="home-button" type="button" title="Return to Earth">⌂ <span>Home</span></button><button id="focus-button" type="button">Reset view</button><button id="motion-toggle" type="button" aria-pressed="false">Pause motion</button><button id="info-button" type="button">Explore Earth ↗</button></div>
+    <div id="experience-launcher" hidden aria-label="Ways to explore">
+      <button id="journey-start" type="button"><span aria-hidden="true">▷</span> Take a journey</button>
+      <button id="comparison-open" type="button">Compare sizes</button>
+      <button id="space-enter" type="button" aria-keyshortcuts="Escape">Space view <span aria-hidden="true">⤢</span></button>
+    </div>
+    <section id="journey-card" hidden aria-label="Cinematic journey">
+      <div class="journey-topline"><span class="eyebrow" id="journey-step"></span><button id="journey-exit" type="button" aria-label="Exit journey">×</button></div>
+      <div id="journey-narrative" aria-live="polite" aria-atomic="true"><h2 id="journey-title"></h2><p id="journey-text"></p><p id="journey-question"></p></div>
+      <div class="journey-controls"><button id="journey-previous" type="button" aria-label="Previous destination">←</button><button id="journey-pause" type="button">Pause journey</button><button id="journey-next" type="button">Next stop →</button><span id="journey-state" role="status"></span></div>
+      <progress id="journey-progress" value="1" max="7" aria-label="Journey progress"></progress>
+    </section>
+    <button id="space-exit" type="button" hidden>↙ Return to explorer <span>Esc</span></button>
+    <dialog id="comparison-dialog" aria-labelledby="comparison-title">
+      <button id="comparison-close" type="button" aria-label="Close size comparison">×</button>
+      <p class="eyebrow">A DIFFERENT SENSE OF SCALE</p>
+      <h2 id="comparison-title">Earth, meet Saturn.</h2>
+      <div id="comparison-pairs" role="group" aria-label="Choose a size comparison"></div>
+      <p id="comparison-ratio" aria-live="polite"></p>
+      <canvas id="comparison-canvas" role="img" aria-label="Two discs drawn on the same diameter scale. The ratio above gives the size difference; the slider magnifies both together."></canvas>
+      <p id="comparison-view-label"></p>
+      <div class="comparison-zoom-label"><label for="comparison-zoom" id="comparison-small-label">Zoom towards Earth</label><output id="comparison-zoom-value" for="comparison-zoom"></output></div>
+      <input id="comparison-zoom" type="range" min="0" max="100" step="1" value="0" />
+      <div class="comparison-bottom"><button id="comparison-reset" type="button">Fit both objects</button><span>Guide line locates the smaller disc</span></div>
+      <p id="comparison-note"></p><div id="comparison-sources"></div>
+    </dialog>
     <footer id="scene-footer"><span id="scene-model">Surface imagery · illustrative lighting</span><span class="control-hint">Drag to orbit <b>·</b> Scroll to zoom <b>·</b> WASD / ±</span><span>Distances &amp; sizes compressed</span></footer>
     <p id="app-status" role="status">Preparing your window into space…</p>
     <noscript><p class="no-script">COSMOS needs JavaScript for its interactive scene and shared atlas.</p></noscript>

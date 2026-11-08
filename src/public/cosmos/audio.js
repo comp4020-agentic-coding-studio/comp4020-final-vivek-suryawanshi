@@ -3,8 +3,9 @@ export function createAmbience(button) {
   let context, gain, voices = [], enabled = false, destination = 'earth';
   function tune() {
     if (!context) return;
-    const base = destination === 'quipu' ? 65.41 : destination === 'great-wall' ? 55 : 73.42;
-    [1, 1.5, 2.002, 2.25].forEach((ratio, i) => voices[i].frequency.setTargetAtTime(base * ratio, context.currentTime, 2));
+    const moods = { earth: [73.42, [1, 1.5, 2.002, 2.25]], saturn: [65.41, [1, 1.498, 2, 2.5]], betelgeuse: [55, [1, 1.26, 1.5, 2.01]], 'gaia-bh1': [49, [1, 1.059, 1.5, 2]], andromeda: [82.41, [1, 1.5, 2, 2.52]], quipu: [65.41, [1, 1.067, 1.5, 2.001]], 'great-wall': [43.65, [1, 1.189, 1.498, 2.002]] };
+    const [base, intervals] = moods[destination] ?? moods.earth;
+    intervals.forEach((ratio, i) => voices[i].frequency.setTargetAtTime(base * ratio, context.currentTime, 2));
   }
   button.addEventListener('click', async () => {
     try {
