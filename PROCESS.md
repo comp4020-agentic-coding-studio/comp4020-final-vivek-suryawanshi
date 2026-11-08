@@ -1,41 +1,63 @@
 # Process overview
 
-## Where this started
+## How the direction changed
 
-I didn't ship anything for Crit 8, so the project really started at Crit 9. My first idea was "Into the Dark", a shared map of the real universe where people send probes that take real time to arrive. I realised I wanted to make a game, and I kept asking what is more fun because another real person is there. That led to Final Over. The bowler picks fast or slow, the batter has to guess, and the fun is in reading patterns and bluffing.
+I didn't ship a prototype for Crit 8. My first working version was Final Over, a cricket prediction game. Then my plans grew: animated characters, different bowling styles, batting timing and dramatic cameras. On my Intel UHD laptop with 8 GB RAM, that worried me, although I never benchmarked a finished game to prove it couldn't run.
 
-## How I work with the agent
+I switched to COSMOS in [`009dd7c`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/009dd7c). Space connects with my physics background and gave the project an educational purpose: students explore, question explanations and share observations. [ADR 0003](docs/adr/0003-switch-to-cosmos.md) explains the options and costs. Keeping to seven destinations gave me more control over scope, but 3D still needed care with performance.
 
-Claude Code writes the code. I direct it, review what it does and correct it. I also use Claude in a separate chat to plan, check my thinking against the brief, and help me draft the README, decision records and this file, which I then edit. I don't let Claude Code touch README, PROCESS.md, CLAUDE.md, docs/ or reflections/. I still need to put that rule into CLAUDE.md so it's part of the harness and not just something I tell it each session.
+## What the cricket version taught me
 
-For each piece of work I give it a small scope and ask for its plan before it writes code. I check the plan, correct it if needed, then approve edits one at a time instead of using auto mode.
+Final Over taught me that a page can look right while the rule behind it is missing. I required the server to withhold the delivery until the prediction locked, instead of sending the answer and hiding it on the page. When first click wins turned out to exist only in the interface, I had the server reject a second delivery and added a test ([`f7ca6ec`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/f7ca6ec)).
 
-## Crit 9: making it real-time
+For identity I chose a browser cookie instead of accounts. During that work I rejected the agent's `ADD COLUMN IF NOT EXISTS`, which SQLite doesn't support, and asked it to check existing columns first. I also kept the delivery value out of logs until the reveal ([`b3c1e1d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/b3c1e1d)). This made me check where data could leave the server. COSMOS applies that lesson to ownership: the server rejects another browser's edit or delete, and observation responses omit author names and identities.
 
-The first slice ([`d24f622`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/d24f622)) let one browser bowl and another predict, with the result pushed to both. When Claude Code asked whether the predicting browser should see the delivery first, I said the server should never send the value at all until the prediction locks, because hiding it on the page isn't real secrecy. That became the main promise in my README.
+## Why I kept the stack
 
-Testing with two windows, I found a reload showed nothing even though rounds were saved, so I asked for history on page load, plus a test that a pending value is never in what a page loads ([`0d3b8ac`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/0d3b8ac)).
+I kept Node's HTTP server, SQLite and server-sent events. `better-sqlite3` wouldn't build on my Windows laptop without extra build tools, and Node's built-in SQLite avoided that. Its database calls are synchronous, but the app is for a small group sharing short notes.
 
-My decision for Crit 9 was first click wins (ADR 0001). When the ship preflight failed against the live app, Claude Code offered to change the app, but I thought the cause was a delivery I'd left pending while testing. That was right, and it fixed the tests instead. While checking, it turned out the server didn't actually enforce first click wins; only the page made it look that way. So I had the server reject a second delivery and added a test ([`f7ca6ec`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/f7ca6ec)).
+SSE fits because the live updates travel from server to browsers; adding and editing notes use ordinary HTTP requests. WebSockets would add a two-way connection I don't need. Notes are stored on Fly's persistent volume, keeping storage simple but making the volume setup essential.
 
-## Crit 10: telling people apart
+The frontend uses Three.js and plain JavaScript modules without a bundler. That avoids another build step, but routing, state and module boundaries still need maintaining.
 
-Crit 10 needed the app to tell people apart, enforce a rule on the server, and log who did what. I chose an anonymous browser id in a cookie plus a name, and the rule that you can't predict your own delivery. The reasons and costs are in [docs/adr/0002-who-counts-as-a-person.md](docs/adr/0002-who-counts-as-a-person.md). The work is in [`b3c1e1d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/b3c1e1d).
+## Deciding what was worth building
 
-Two corrections shaped it:
+Sloan's [home-cooked app essay](https://www.robinsloan.com/notes/home-cooked-app/) helped me aim at a particular group rather than a general platform. Satyal's [Small Web essay](https://neustadt.fr/essays/the-small-web/) supports building a site around a personal interest. Neither proves educational value. My position is that curiosity should lead to looking more closely, and another person's note should give you something new to consider.
 
-- Claude Code's plan added the new database columns with `ADD COLUMN IF NOT EXISTS`. SQLite doesn't support that, and my live database already had rounds in it, so the deploy could have crashed the app. I had it check which columns exist first, and asked for a test that starts from the old schema with a real round and checks it still shows up.
-- Before it started, I realised that if the log said who bowled *what*, anyone watching my terminal at the crit would see the delivery before the prediction. So I told it to log deliveries without the value and only log the value at the reveal. It made the delivery log function take no value at all, and added a test that a delivery line never contains "fast" or "slow".
+That shaped the Discovery Atlas: notes belong to destinations, appear for anyone viewing the same place within about a second, and stay after people leave. I left out live explorer markers, a separate black hole investigation and narration; the README explains why.
 
-I rehearsed the crit with my laptop and my phone as two people while tailing `flyctl logs`. The logs showed both people joining with names and ids, the hidden delivery, the rejected own-prediction, and the reveal.
+## Directing the agents
 
-## The stack
+I used Claude Code for most of the implementation and Claude separately for planning and review. However, repeated visual changes still didn't produce the immersive space experience I wanted. Features were being added, but I remained unhappy with the overall result. Technical progress was not enough for me to accept the presentation.
 
-The app is plain Node (`node:http`), SQLite through Node's built-in `node:sqlite`, server-sent events for live updates, and `marked` to render the README at /readme/.
+I cannot confidently say whether my instructions were too open or Claude Code misunderstood them. Words such as “realistic” left many decisions unspecified: lighting, camera position, object scale and how the interface should sit around the scene. I could recognise the mismatch more easily than describe every change needed.
 
-- I used `node:sqlite` because `better-sqlite3` wouldn't build on my Windows laptop (no Python or C++ build tools). The built-in module needs no compiling, so it runs the same locally and on Fly. The cost is that it's still marked experimental.
-- Server-sent events are enough because only the server needs to push. Players send actions as normal requests.
-- There's no framework, so routing is hand-written. That's fine for a handful of routes.
-- The database is on the Fly volume at /data, which is what keeps rounds through redeploys.
+In ChatGPT, I discussed that mismatch and developed clearer visual expectations. Codex then made two broader frontend passes ([`c4e7b34`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/c4e7b34), [`8610bc1`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/8610bc1)). I accepted them because the composition, navigation and destination presentation were closer to what I needed, while the shared Atlas remained functional. This was not a controlled comparison: Codex also inherited the earlier code, assets and clarified requirements.
 
-All the work so far: [`15bc4af...b3c1e1d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/compare/15bc4af...b3c1e1d).
+Larger changes were harder to inspect. I compared the supplied files, checked the backend remained unchanged, ran tests and committed the changes myself. I deferred documentation and stopped feature additions after accepting the result.
+
+[`83e081e`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/83e081e) recorded the boundaries in CLAUDE.md, with AGENTS.md pointing there. Some rules were previously conversational. Recording them later does not prove they governed every earlier change; the commits and tests remain the evidence.
+
+## Corrections that shaped COSMOS
+
+Before the first COSMOS build, I corrected three parts of the plan: keyboard users needed destination buttons, observation text needed `textContent`, and notes should show only “you” or “an explorer” ([`009dd7c`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/009dd7c)). The current [UI checks](spec/ui.test.ts) verify navigation and dialog structure. The [rendering](spec/atlas-render.test.ts) and [ownership](spec/identity.test.ts) tests check literal text, including a `<script>` payload, ownership enforcement and private author attribution.
+
+A blank preview was a positioning bug: the copied model retained its distant scene position, outside the preview camera's view ([`c75454d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/c75454d)).
+
+For science, I requested sources and “TODO: verify” instead of guesses. I caught that the Andromeda prediction came from a 2012 study and requested Sawala et al. (2025), which estimated about a 50% chance of collision or merger within the next 10 billion years ([`593bd26`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/593bd26)). Licensed textures followed, with attribution recorded ([`0ee6809`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/0ee6809)).
+
+I also challenged the visual plans. I wanted both planets' lighting to agree with one Sun, so I requested a single Sun light ([`d0d363a`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/d0d363a)). Saturn was only 1.3 times Earth's diameter in the plan; I required approximately 9.4. That correction, night lights and framing changes are in [`af47614`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/af47614). Desktop `showModal()` would block interaction with the scene while reading, so the fullscreen layout uses a non-modal desktop panel ([`0ad5f3d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/0ad5f3d)).
+
+## Reliability and acceptance
+
+Codex's redesign ([`c4e7b34`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/c4e7b34)) strengthened the Atlas. A late destination response must not overwrite another destination, and a note arriving through both snapshot and SSE must not appear twice. [spec/atlas-state.test.ts](spec/atlas-state.test.ts) protects these cases, drafts and failed submissions.
+
+I accepted the journey, size comparison and Space view in [`8610bc1`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/commit/8610bc1), then stopped adding features. Journey tests cover interrupted arrivals, pause and completion; comparison tests preserve diameter ratios while zooming.
+
+The suite has 34 tests across 11 files. CI builds and starts the deployment image, then runs `pnpm check`, with HTTP tests pointed at that container. Tests cover separate cookie identities, live delivery within a second and observations surviving a database-process restart.
+
+## What the evidence doesn't show
+
+I used the main 3D version on my laptop and phone while building it. That shows it runs and fits both screens; it isn't a measured frame rate or a user study. I haven't evaluated COSMOS with other students. I have stronger evidence that the interactions work than that they help people learn, and the README keeps that distinction.
+
+Implementation and documentation through `b45c658`: [`15bc4af...b45c658`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-vivek-suryawanshi/compare/15bc4af...b45c658).
