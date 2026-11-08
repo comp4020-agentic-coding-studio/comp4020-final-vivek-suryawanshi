@@ -1,48 +1,35 @@
-# Final Over
+# COSMOS
 
-Final Over is a small multiplayer cricket prediction game. One person bowls and picks a fast or slow delivery. Someone else bats and predicts which one it was. When the prediction goes in, every open browser shows the result straight away, without refreshing.
-
-This is the first real-time version, made for Crit 9. There's no batting animation or shot timing yet. Right now I'm only testing one thing: is picking a delivery and trying to read another person fun enough that people want another round?
+COSMOS is a shared space exploration website for students who are curious about the universe. You can visit seven destinations, from Earth and Saturn to galaxies and large cosmic structures. You can explore freely, take an optional journey, compare sizes, and share observations in the Discovery Atlas.
 
 ## What good means here
 
-For me, good means the game is easy to join but still makes you think about your next choice. A bowler can bowl fast a few times to set up a pattern and then switch to slow. The batter can look at the recent rounds and guess whether the pattern will keep going. The history gives both people something to read, but it can't hand you the answer.
+For me, good means making someone curious enough to look more closely, while helping them understand what they are looking at. A realistic appearance can attract attention, but it can also make an illustration look more certain than the science behind it. COSMOS should make space interesting without hiding that difference.
 
-That only works if the delivery is really secret. Hiding it on the page isn't enough if the browser has already been sent the answer, because anyone can open dev tools and look. So the server never sends a pending delivery's value to any browser until a prediction is locked. Other browsers only learn that a delivery is waiting.
+The information panels distinguish observed evidence, reconstructions, simulations and proposed findings. Gaia BH1 shows its visible companion star rather than an invented glowing black hole. The Hercules–Corona Borealis Great Wall is labelled as proposed, not confirmed. Distances and sizes are compressed for exploration, while the comparison view keeps both objects on the same diameter scale.
 
-A round also needs a clear ending. After the prediction, everyone should see the delivery, the prediction and whether it was a hit within about a second. "Hit" here means a correct prediction, not bat on ball.
+Robin Sloan's *An app can be a home-cooked meal* [1] helped me think about making something useful for a small group. His example concerns a family; my audience is students exploring a subject together. I want another person's observation to give someone a reason to look again. Parimal Satyal's *Rediscovering the Small Web* [2] supports making personal websites around particular interests. For COSMOS, that means keeping the experience focused on curiosity, without scores, rankings or pressure to complete everything. Neither essay proves that COSMOS achieves this; people using it have to judge that.
 
-## Playing together and coming back
+## Exploring together
 
-Updates go out over server-sent events. When someone opens the page, the same connection sends the current state: whether a delivery is waiting, and the ten most recent finished rounds. Rounds are saved in SQLite on the Fly volume, so they survive restarts and redeploys. The page only shows ten to stay readable. Older rounds aren't deleted.
+Enter a name to begin. Your browser receives an anonymous identity cookie. Shared observations appear as "you" or "an explorer"; names are not displayed to other visitors. Only the author's browser can edit or delete its notes. Clearing cookies loses that ownership. The server logs who added, edited or deleted a note, with a short id.
 
-The game should get more interesting with more people around, because everyone sees the same history and can argue about what's coming next. Right now, though, the app doesn't give watchers anything to do.
+If two people have the same destination open, a note from one appears for the other within about a second, without reloading, so you can react to what someone else just noticed. Notes are stored in SQLite on the Fly volume so they survive restarts and redeploys. The optional journey can be paused or skipped. Sound starts only when enabled, and Space view hides the controls.
 
-## Who's who
+## What I chose to leave out
 
-When you first open the game, it asks for your name. The server also gives your browser a random id in a cookie. The id is what the server trusts, and the name is what everyone sees, so two people called Andy are still told apart. You can't predict a delivery you bowled yourself: the server checks your id against the bowler's and rejects it. The reasons and costs are in docs/adr/0002.
+Live explorer markers would show where people are, but the Atlas gives them something to contribute. I kept collaboration centred on observations. A separate black hole investigation would need a convincing model and explanation of what its results mean; the current destination explains the evidence instead. Narration would set a reading pace, so I kept text and optional ambience. These choices keep the project manageable and leave visitors in control.
 
-This identity is really a browser, not an account. Someone who opens an incognito window becomes a new person and could predict their own delivery from there. I chose fast joining over accounts, because this is a game you play with people in the same room.
+## What is checked and what needs judgement
 
-## What I haven't built (yet)
+The 34 tests in `spec/` cover ownership, private attribution, observation limits, literal rendering of observation text, delivery of a new note to a second browser within a second, persistence across database processes, destination-switching races, drafts, journey timing and comparison ratios. They also check that the app responds and publishes this README.
 
-There are no full six-ball innings, no spectator predictions and no batting animation. Those come after I've seen whether the basic contest works.
+Tests cannot establish whether the universe feels convincing, explanations are understandable, or someone else's note changes what a visitor notices. Those need human judgement. I checked it in Chrome on my laptop (Intel integrated graphics) and on my phone. That shows it runs and fits both screens; it doesn't show that people learn more or enjoy it.
 
-## What informed the design
+## Credits and references
 
-Robin Sloan's essay *An app can be a home-cooked meal* [1] is about making software for one particular small group of people. That's why I'm aiming at a game my classmates can pick up and play together, not a general cricket game.
+Earth, Saturn, ring and Milky Way textures are by [Solar System Scope](https://www.solarsystemscope.com/textures/) (INOVE s.r.o.), based on NASA imagery, under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). They were resized and recompressed. Scientific sources are linked in each destination's panel.
 
-Parimal Satyal's *Rediscovering the Small Web* [2] is about personal, specific websites. I read it as saying a small project can be worth something because of one specific experience. Neither essay proves this game is fun, though. Only playtesting can show that.
+[1] Robin Sloan. [An app can be a home-cooked meal](https://www.robinsloan.com/notes/home-cooked-app/), 2020.
 
-## What's checked and what's judged 
-
-Checked by tests in `spec/`: a delivery stays secret until a prediction is locked in, and a pending delivery's value is never in what a page loads; a wrong prediction is scored as a miss; a prediction is rejected when no delivery is waiting; a second delivery is rejected while one is already waiting, so the first click wins; you can't predict a delivery you bowled (the server returns an error); a delivery's log line never contains its value; old rounds from before names existed still load and show as "Anonymous"; and the page lists at most the ten most recent finished rounds, newest first. The course's two shipped checks also pass (the app answers at `/`, and this README is published at `/readme/`).
-
-Judged by people: whether it's fun. At the crit I want to watch whether people understand the reveal, start reading each other's patterns, and want to play again.
-
-
-## References
-
-[1] Robin Sloan. [An app can be a home-cooked meal](https://www.robinsloan.com/notes/home-cooked-app/). February 2020.
-
-[2] Parimal Satyal. [Rediscovering the Small Web](https://neustadt.fr/essays/the-small-web/). 25 May 2020.
+[2] Parimal Satyal. [Rediscovering the Small Web](https://neustadt.fr/essays/the-small-web/), 2020.
